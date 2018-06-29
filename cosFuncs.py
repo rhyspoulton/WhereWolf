@@ -1,3 +1,15 @@
+#
+# These functions allow various properties of the expansion of the Universe to be calculated:
+# e.g. OmegaM/OmegaL/OmegaR/OmegaK for any redshift, growth rate and growth factor, sigma8, and
+# RhoCrit and RhoMean. They use curvature correctly, calculated internally using the relation
+# OmegaM+OmegaL+OmegaR+OmegaK=1, but by default they assume a flat Universe where only OmegaM
+# needs to be specified and OmegaR=0 (so no radiation pressure at any epoch).
+#
+# These are translated into python from the Celestial R package by Dr Aaron Robotham:
+# https://cran.r-project.org/package=celestial
+#
+
+
 import numpy as np
 import warnings
 
