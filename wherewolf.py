@@ -69,7 +69,8 @@ for isnap in range(opt.numsnaps):
 
 	#Check if any process has any halos
 	if(np.sum(ihaloends[:,isnap])==0):
-		print("There are no halos present at this snapshot")
+		if(Rank==0):
+			print("There are no halos present at this snapshot")
 		continue
 
 
@@ -214,10 +215,11 @@ for isnap in range(opt.numsnaps):
 		#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
 		# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[isnap],appendHaloData,Nappend,TotNappend)
 
+		# Set in the flag that a treefile has been created for a snapshot before
+		TrackFlag[isnap-1] = True
+
 		# If the rootprocess then write to the treedata
 		if(Rank==0):
-			# Set in the flag that a treefile has been created for a snapshot before
-			TrackFlag[isnap-1] = True
 
 			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
 			# The file is for the previous snapshot
@@ -252,8 +254,6 @@ for isnap in range(opt.numsnaps):
 	elif(newPartOffsets is not None):
 		nextPIDs = contPIDs
 
-	
-
 	ALLWWstat = {}
 
 	for field in WWstat.keys():
@@ -271,34 +271,36 @@ for isnap in range(opt.numsnaps):
 			WWstatfile.write("%i "%ALLWWstat[field])
 		WWstatfile.write("\n")
 
+#Check if anything has been tracked
+if(any(TrackFlag)):
+
+	#Gather the final tree data
+	appendTreeData,prevupdateTreeData=MPIroutines.GatheroutputTreeData(comm,Rank,size,appendTreeData,None,treeDtype)
+
+	#If the root process then generate the final treefile and filelists
+	if(Rank==0):
+		WWstatfile.close()
+
+		#Output the final tree file
+		WWio.OutputWhereWolfTreeData(opt,isnap,appendTreeData,None)
+		TrackFlag[isnap] = True
 
 
+		#Create the file list in the output directory
+		treefilelist = open(opt.outputdir+"treesnaplist.txt","w")
+		for isnap in range(opt.numsnaps):
 
-appendTreeData,prevupdateTreeData=MPIroutines.GatheroutputTreeData(comm,Rank,size,appendTreeData,None,treeDtype)
+			#Write out the WW treefile name if it has been tracked or the original tree name if not
+			if(TrackFlag[isnap]):
+				treefilelist.write( opt.outputdir+"/snapshot_%03d.VELOCIraptor.WW.tree\n" %(isnap+opt.Snapshot_offset))
+			else:
+				treefilelist.write(opt.TreeFileList[isnap] + "\n")
+		treefilelist.close()
 
-#If the root process then generate the final treefile and filelists
-if(Rank==0):
-	WWstatfile.close()
+		# snaplist = open(OutputDir+"snaplist.txt","w")
+		# for snap in range(isnap,fsnap+1):
+		# 	snaplist.write(VELFileBasename %(snap) +"\n")
+		# snaplist.close()
 
-	#Output the final tree file
-	WWio.OutputWhereWolfTreeData(opt,isnap,appendTreeData,None)
-	TrackFlag[isnap] = True
-
-
-	#Create the file list in the output directory
-	treefilelist = open(opt.outputdir+"treesnaplist.txt","w")
-	for isnap in range(opt.numsnaps):
-
-		#Write out the WW treefile name if it has been tracked or the original tree name if not
-		if(TrackFlag[snapindex]):
-			treefilelist.write( opt.outputdir+"/snapshot_%03d.VELOCIraptor.WW.tree\n" %(snap+opt.Snapshot_offset))
-		else:
-			treefilelist.write(opt.TreeFileList[isnap] + "\n")
-	treefilelist.close()
-
-	# snaplist = open(OutputDir+"snaplist.txt","w")
-	# for snap in range(isnap,fsnap+1):
-	# 	snaplist.write(VELFileBasename %(snap) +"\n")
-	# snaplist.close()
-
-	print("Tracking done in",time.time() - totstart,",the particles are no longer exclusive to one halo. \nTreefrog can handle this as it just overwrites the halo it is in, \nas it reads from low to high index halos where WhereWolf halos \nhave high index values")
+		print("Tracking done in",time.time() - totstart)
+		print("With WhereWolf halos, particles are no longer exclusive to a single halo")

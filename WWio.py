@@ -698,7 +698,14 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 
 		#Done with the updateTreeData
 		del updateTreeData
-		
+	else:
+		#Find the location of thier direct descendants from the offsets
+		TFDescOffsets = np.asarray(treefile["DescOffsets"])
+		#Now load in the descendant data
+		TFDescen = np.asarray(treefile["Descendants"])
+		TFRanks = np.asarray(treefile["Ranks"])
+		dsetSize = TFRanks.size
+
 
 	#Check if there is anything to append to the tree
 	if(appendTreeData is not None):
