@@ -91,7 +91,7 @@ def ReadGadgetPosVel(Rank,size,GadFilename,ExtractParticleIDs,Gadnumfiles,Gadfil
 
 	return pos,vel
 
-def GetParticleData(Rank,size,trackIndx,tracknpart,GadFilename,VELFilename,WWFilename,GadHeaderInfo,VELnumfiles,VELfilenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextpids):
+def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnumfiles,VELfilenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextpids):
 
 	start = time.time()
 
@@ -166,7 +166,7 @@ def GetParticleData(Rank,size,trackIndx,tracknpart,GadFilename,VELFilename,WWFil
 	Sel = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
 	Sel[allExtractParticleIDs-1] = True
 
-	WWPartSortedFile = h5py.File(WWFilename,"r")
+	WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[isnap]+".WWpidsortindex.hdf","r")
 
 	partLoc = WWPartSortedFile["pidSortedIndexes"][Sel]
 	GadFileOffsets = WWPartSortedFile["fileOffsets"][:]
@@ -217,7 +217,7 @@ def GetParticleData(Rank,size,trackIndx,tracknpart,GadFilename,VELFilename,WWFil
 			# LoadBool[fileLoc] = True
 			LoadBool2[fileLoc,:] = True
 
-			GadFile = h5py.File(GadFilename+".%i.hdf5" %i,"r")
+			GadFile = h5py.File(opt.GadFileList[isnap]+".%i.hdf5" %i,"r")
 
 			#Extract the data from the file
 			# newPartIDs[offset:offset+fileNpart] = GadFile["PartType1"]["ParticleIDs"][LoadBool]
@@ -321,15 +321,13 @@ def GetGadFileMinMax(comm,Rank,size,GadFilename,GadHeaderInfo):
 
 
 
-def ReadVELOIraptorNumhalos(basefilename,isnap,fsnap):
+def ReadVELOIraptorNumhalos(opt):
 
-	numsnaps = fsnap - isnap + 1
+	numhalos = np.zeros(opt.numsnaps,dtype=np.uint64)
 
-	numhalos = np.zeros(numsnaps,dtype=np.uint64)
+	for i in range(opt.numsnaps):
 
-	for i,snap in enumerate(range(isnap,fsnap+1)):
-
-		filename=basefilename %snap +".properties"+".0"
+		filename= opt.VELFileList[i] + ".properties.0"
 
 		hdffile = h5py.File(filename,"r")
 
@@ -490,20 +488,17 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 
 	return tree
 
-def SetupParallelIO(nprocess,isnap,fsnap,VELFileBasename):
+def SetupParallelIO(opt,nprocess):
 
 	print("Setting up for ParallelIO")
 
-
-	numsnaps = fsnap - isnap+1
-
 	#Set the number of halos per cpu	
-	ihalostart = np.zeros([nprocess,numsnaps],dtype=np.int64)
-	ihaloend = np.zeros([nprocess,numsnaps],dtype=np.int64)
+	ihalostart = np.zeros([nprocess,opt.numsnaps],dtype=np.int64)
+	ihaloend = np.zeros([nprocess,opt.numsnaps],dtype=np.int64)
 
-	numhalos = ReadVELOIraptorNumhalos(VELFileBasename,isnap,fsnap)
+	numhalos = ReadVELOIraptorNumhalos(opt)
 
-	for snap in range(numsnaps):
+	for snap in range(opt.numsnaps):
 
 		numPerCPU = np.floor(numhalos[snap]/np.float(nprocess))
 
@@ -660,15 +655,15 @@ def ReadGadgethdf(GadFileBaseName,partIDs,pid,numfiles,fileoffset):
 	# print(newPartIDs[:5])
 	return pos,vel
 
-def OutputWhereWolfTreeData(TreeFilename,appendTreeData,updateTreeData,HALOIDVAL=1000000000000):
+def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=1000000000000):
 
 	treeFields=["ID","NumDesc"]
 
 	#Open up the TreeFrog tree file
-	treefile = h5py.File(TreeFilename + ".tree","r")
+	treefile = h5py.File(opt.TreeFileList[snap] + ".tree","r")
 
 	#Open up a .WW file to output all the tree data
-	WWtreefile = h5py.File(TreeFilename+".WW.tree","w")
+	WWtreefile = h5py.File(opt.outputdir+"/snapshot_%03d.VELOCIraptor.WW.tree" %(snap+opt.Snapshot_offset),"w")
 
 	#Give the WW treefile the same header infor as the treefrog file
 	for attrsField in treefile.attrs.keys():
@@ -703,6 +698,7 @@ def OutputWhereWolfTreeData(TreeFilename,appendTreeData,updateTreeData,HALOIDVAL
 
 		#Done with the updateTreeData
 		del updateTreeData
+		
 
 	#Check if there is anything to append to the tree
 	if(appendTreeData is not None):

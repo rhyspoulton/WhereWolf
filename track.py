@@ -9,7 +9,7 @@ from scipy.spatial import cKDTree
 
 G = 43.0211349
 
-def StartTrack(snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,partOffsets,GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat,HALOIDVAL=1000000000000):
+def StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,partOffsets,GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat):
 
 	keepPIDS = np.zeros(len(allpid),dtype = bool)
 	newPartOffset=pidOffset
@@ -30,7 +30,7 @@ def StartTrack(snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,all
 
 		#Find the id and index of the host
 		if(snapdata["hostHaloID"][Indx]>-1):
-			Hostindx=int(snapdata["hostHaloID"][Indx]%HALOIDVAL-1)
+			Hostindx=int(snapdata["hostHaloID"][Indx]%opt.Temporal_haloidval-1)
 			hostHead=treedata["Descen"][Hostindx]
 		else:
 			hostHead=-1
@@ -99,13 +99,13 @@ def StartTrack(snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,all
 
 	return newPartOffsets,startpids
 
-def MergeHalo(snap,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,pfiles,upfiles,grpfiles,prevappendTreeData,pos_tree,WWstat,numsearch = 100,HALOIDVAL=1000000000000):
+def MergeHalo(opt,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,pfiles,upfiles,grpfiles,prevappendTreeData,pos_tree,WWstat):
 
 
-	#Lets find the numsearch of halos closest to this halo
-	_,indx_list = pos_tree.query(meanpos,numsearch)
+	#Lets find the num halos search of halos closest to this halo
+	_,indx_list = pos_tree.query(meanpos,opt.Num_Halos_search)
 
-	meritList = np.zeros(numsearch,dtype=float)
+	meritList = np.zeros(opt.Num_Halos_search,dtype=float)
 
 	match=False
 
@@ -130,7 +130,7 @@ def MergeHalo(snap,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,pfiles,
 		#Do a merit calculation to see if they do overlap
 		meritList[i]=(nsh*nsh)/(matchNpart*npart)
 
-	# HostIndx = int(host%HALOIDVAL-1)
+	# HostIndx = int(host%opt.Temporal_haloidval-1)
 	# fileno = 0
 	# offset = 0
 	# while((HostIndx+1)>(offset + filenumhalos[fileno])):
@@ -180,10 +180,7 @@ def MergeHalo(snap,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,pfiles,
 
 
 
-def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,HALOIDVAL=1000000000000,matching="core",minpart=100,fracpart=0.4):
-
-
-	snapindex = snap 
+def ContinueTrack(opt,snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat):
 
 	#Find the physical boxsize
 	boxsize = GadHeaderInfo["BoxSize"]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"]
@@ -259,13 +256,13 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 			if(TrackData["TrackedNsnaps"][i]>0):
 				#Get the index of the WW halo in the previous snapshot
 				progen=TrackData["progenitor"][i]
-				progenIndx = int(TrackData["progenitor"][i]%HALOIDVAL-1)
+				progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
 
 				progenIndx = progenIndx - prevNhalo
 
 				#Find the halo it has merged with if it has been lost using the particles that were previously bound to the halo
 				if(TrackData["TrackDisp"][i]):
-					 MergeHalo(snap,meanpos,partIDs[TrackData["boundSel"][i]],progenIndx,snapdata,TrackData["host"][i],filenumhalos,pfiles,upfiles,grpfiles,prevappendTreeData,pos_tree,WWstat)
+					 MergeHalo(opt,meanpos,partIDs[TrackData["boundSel"][i]],progenIndx,snapdata,TrackData["host"][i],filenumhalos,pfiles,upfiles,grpfiles,prevappendTreeData,pos_tree,WWstat)
 
 				#If not to be tracked until dispersed then connect it up with its endDesc
 				else:
@@ -323,8 +320,8 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 			offset = 0
 
 			#If doing core matching finc out how many particles to match in the core of the WW halo
-			if(matching=="core"):
-				WWCoreNpart = np.max([np.rint(fracpart*npart),minpart])
+			if(opt.iCore):
+				WWCoreNpart = np.max([np.rint(opt.CoreFrac*npart),opt.MinNumpartCore])
 				WWCoreNpart = np.min([npart,WWCoreNpart]).astype(int)
 
 			#Loop over all the matches
@@ -375,7 +372,7 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 					# else:
 					#Only update if this halo has been tracked for at least 1 snapshot
 					if(TrackData["TrackedNsnaps"][i]>0):
-						progenIndx = int(TrackData["progenitor"][i]%HALOIDVAL-1)
+						progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
 						progenIndx = progenIndx - prevNhalo
 						prevappendTreeData["Descendants"][progenIndx]= MatchedID
 						prevappendTreeData["NumDesc"][progenIndx] = 1
@@ -385,11 +382,11 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 					break
 
 
-				if(matching=="core"):
+				if(opt.iCore):
 
 					######### Then do core to core if selected  ########
 
-					MatchCoreNpart = np.max([np.rint(fracpart*matchNpart),minpart])
+					MatchCoreNpart = np.max([np.rint(opt.CoreFrac*matchNpart),opt.MinNumpartCore])
 					MatchCoreNpart = np.min([matchNpart,MatchCoreNpart]).astype(int)
 
 					#Find the amount of core particles that match in the two halos
@@ -410,7 +407,7 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 						# else:
 						#Only update if this halo has been tracked for at least 1 snapshot
 						if(TrackData["TrackedNsnaps"][i]>0):
-							progenIndx = int(TrackData["progenitor"][i]%HALOIDVAL-1)
+							progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
 							progenIndx = progenIndx - prevNhalo
 							prevappendTreeData["Descendants"][progenIndx]= MatchedID
 							prevappendTreeData["NumDesc"][progenIndx] = 1
@@ -429,11 +426,11 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 					TrackData["CheckMerged"][i][MatchedID]+=1
 
 					#If it is within 0.1 Rvir more than 3 times stop the tracking
-					if(TrackData["CheckMerged"][i][MatchedID]==3):
+					if(TrackData["CheckMerged"][i][MatchedID]==opt.NumSnapsWithinCoreMerge):
 
 						progen=TrackData["progenitor"][i]
 
-						progenIndx = int(TrackData["progenitor"][i]%HALOIDVAL-1)
+						progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
 						progenIndx = progenIndx - prevNhalo
 						prevappendTreeData["Descendants"][progenIndx]= MatchedID
 						prevappendTreeData["NumDesc"][progenIndx] = 1
@@ -458,7 +455,7 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 				continue
 
 		#From the caustic line can see if particles are bound to the halo
-		ID=snap*HALOIDVAL +(len(snapdata["ID"]) + len(appendHaloData["ID"])) +1
+		ID=(snap+opt.Snapshot_offset)*opt.Temporal_haloidval +(len(snapdata["ID"]) + len(appendHaloData["ID"])) +1
 
 		# Calculate properties of the halo
 		R_200mean=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhomean/1e10,200,GadHeaderInfo["partMass"])
@@ -493,13 +490,13 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 
 
 		#Lets see if the halo has a host if not then we can try and set one
-		if((TrackData["host"][i]>0) & (int(TrackData["host"][i]/HALOIDVAL)==snap)):
-				appendHaloData["Parent_halo_ID"].append(int(TrackData["host"][i]%HALOIDVAL+1))
+		if((TrackData["host"][i]>0) & (int(TrackData["host"][i]/opt.Temporal_haloidval)==snap+opt.Snapshot_offset)):
+				appendHaloData["Parent_halo_ID"].append(int(TrackData["host"][i]%opt.Temporal_haloidval+1))
 				appendHaloData["hostHaloID"].append(TrackData["host"][i])
 
 				#Only need to do this if not at the final snapshot
 				if(snap<fsnap):
-					HostIndx=int(TrackData["host"][i]%HALOIDVAL -1)
+					HostIndx=int(TrackData["host"][i]%opt.Temporal_haloidval -1)
 					hostHeadID=treedata["Descen"][HostIndx]
 
 					#Update the host in the trackdata
@@ -554,7 +551,7 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 			prevupdateTreeData["Descendants"].append(ID)
 		else:
 
-			progenIndx = int(progen%HALOIDVAL-1)
+			progenIndx = int(progen%opt.Temporal_haloidval-1)
 
 			progenIndx = progenIndx - prevNhalo 
 			prevappendTreeData["Descendants"][progenIndx]= ID
@@ -568,7 +565,7 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 
 
 		#Lets see if the halo has reached the last snapshot it should be tracked for
-		if((int(TrackData["endDesc"][i]/HALOIDVAL)==snap+1) & (TrackData["TrackDisp"][i]==False)):
+		if((int(TrackData["endDesc"][i]/opt.Temporal_haloidval)==snap+opt.Snapshot_offset+1) & (TrackData["TrackDisp"][i]==False)):
 
 			appendTreeData["Descendants"][-1] = TrackData["endDesc"][i]
 			appendTreeData["NumDesc"][-1] = 1
@@ -587,7 +584,7 @@ def ContinueTrack(snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffsets,
 
 		# 	#Find the halo it has merged with if it has been lost
 		# 	if(TrackData["TrackDisp"][i]):
-		# 		 MergeHalo(snap,meanpos,partIDs[TrackData["boundSel"][i]],-1,snapdata,TrackData["host"][i],filenumhalos,pfiles,upfiles,grpfiles,appendTreeData,pos_tree,WWstat)
+		# 		 MergeHalo(opt,meanpos,partIDs[TrackData["boundSel"][i]],-1,snapdata,TrackData["host"][i],filenumhalos,pfiles,upfiles,grpfiles,appendTreeData,pos_tree,WWstat)
 		# 		 WWstat["MergedMBP"]+=1
 
 		# 	#If not to be tracked until dispersed then connect it up with its endDesc
