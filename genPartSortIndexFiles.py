@@ -6,111 +6,81 @@
 #
 # It can be run by the command:
 #
-# $ mpirun -n <num threads> python genPartSortIndexFiles.py <Gadget folder input directory> <Output directory> <initial snapshot> <final snapshot>
+# $ python genPartSortIndexFiles.py <Gadget folder input directory> <Output directory> <snapshot>
 
 import numpy as np 
 import h5py
-from mpi4py import MPI
 import time
 import sys
 
-comm = MPI.COMM_WORLD
-Rank = comm.Get_rank()
-size = comm.Get_size()
 
-
-if(len(sys.argv)<5):
-	raise SystemExit("Incorrect number of arguments parsed.\n \tUsage: mpirun -n <num threads> python genPartSortIndexFiles.py <Gadget folder input directory> <Output directory> <initial snapshot> <final snapshot>\n")
+if(len(sys.argv)<4):
+	raise SystemExit("Incorrect number of arguments parsed.\n \tUsage: mpirun -n <num threads> python genPartSortIndexFiles.py <Gadget folder input directory> <Output directory> <snapshot>\n")
 
 
 try:
-	isnap = int(sys.argv[3])
-	fsnap = int(sys.argv[4])
+	snap = int(sys.argv[3])
 except ValueError:
 	raise SystemExit("Please parse a int for the snapshot number")
 
 GadDir = sys.argv[1]
 OutputDir = sys.argv[2]
 
-numsnaps = fsnap - isnap + 1
+print("Doing snap",snap)
+start = time.time()
 
-#Let the first process decide which snapshots each process should do
-if(Rank==0):
+#Extract all the header info from the first file
+GadFilename = GadDir + "/snapshot_%03d.0.hdf5" %snap
+GadFile = h5py.File(GadFilename,"r")
+TotNpart = np.sum(GadFile["Header"].attrs["NumPart_Total"])
+NumFiles = GadFile["Header"].attrs["NumFilesPerSnapshot"]
 
-	#Find the amount of snapshots per process
-	numsnapsPerProcess = int(np.floor(numsnaps/size))
+#State how much memory is needed
+print("To load in and sort",TotNpart,"particle IDs, this task will need minimum ",(2 * TotNpart * 8 )/( 1000**3),"GB of memory")
 
-	snapRanges = []
+# Setup the values
+pid = np.zeros(TotNpart,dtype=np.uint64)
 
-	processIsnap=isnap
-	processFsnap=numsnapsPerProcess + isnap
+#Store the offsets for the number of particles in each file
+GadPartOffsets = np.zeros(NumFiles+1,dtype=np.uint64)
+GadNumPartFile = np.zeros(NumFiles,dtype=np.uint64)
+ioffset = np.uint64(0)
 
-	for i in range(size):
+# Loop over all the gadget files extacting them into 1 array
+for i in range(NumFiles):
 
-		#If the final process, then make sure it includes the final snapshot
-		if(i==size-1):
-			snapRanges.append(range(processIsnap,fsnap))
-		else:
-			snapRanges.append(range(processIsnap,processFsnap))
-
-		processIsnap+=numsnapsPerProcess
-		processFsnap+=numsnapsPerProcess
-
-else:
-	#If not the root process then just define a varible to be assigned in a broadcast
-	snapRanges=None
-
-#Broadcast the snapranges to each process
-snapRanges = comm.bcast(snapRanges,root=0)
-
-print(Rank,"is doing snaps",list(snapRanges[Rank])[0],"to",list(snapRanges[Rank])[-1])
-for snap in snapRanges[Rank]:
-
-	print(Rank,"doing snap",snap)
-	start = time.time()
-
-	#Extract all the header info from the first file
-	GadFilename = GadDir + "/snapshot_%03d.0.hdf5" %snap
+	GadFilename = GadDir +"/snapshot_%03d.%i.hdf5" %(snap,i)
 	GadFile = h5py.File(GadFilename,"r")
-	TotNpart = np.sum(GadFile["Header"].attrs["NumPart_Total"])
-	NumFiles = GadFile["Header"].attrs["NumFilesPerSnapshot"]
+	GadNumPartFile[i] =  np.sum(GadFile["Header"].attrs["NumPart_ThisFile"],dtype=np.uint64)
+	ioffset+=GadNumPartFile[i]
 
-	# Setup the values
-	pid = np.zeros(TotNpart,dtype=np.uint64)
+	#Load the particle IDs and offsets into the arrays
+	pid[GadPartOffsets[i]:ioffset] = np.asarray(GadFile["PartType1"]["ParticleIDs"])
+	GadPartOffsets[i+1] = ioffset
+	GadFile.close()
 
-	#Store the offsets for the number of particles in each file
-	GadFileOffsets = np.zeros(NumFiles+1,dtype=np.uint64)
-	ioffset = np.uint64(0)
+#Argsort the file to find where and which file they are located
+pidSortedIndexes = np.argsort(pid)
 
-	# Loop over all the gadget files extacting them into 1 array
-	for i in range(NumFiles):
+print("Done argsorting the Particle ID array now on to outputting the data")
 
-		GadFilename = GadDir +"/snapshot_%03d.%i.hdf5" %(snap,i)
-		GadFile = h5py.File(GadFilename,"r")
-		numPartThisFile =  np.sum(GadFile["Header"].attrs["NumPart_ThisFile"],dtype=np.uint64)
-		ioffset+=numPartThisFile
+#Output the data in the same splitting that is present in the gadget files
+for i in range(NumFiles):
 
-		#Load the particle IDs and offsets into the arrays
-		pid[GadFileOffsets[i]:ioffset] = np.asarray(GadFile["PartType1"]["ParticleIDs"])
-		GadFileOffsets[i+1] = ioffset
-		GadFile.close()
+	hdffile = h5py.File(OutputDir+"/snapshot_%03d.WWpidsortindex.%i.hdf" %(snap,i),"w")
 
-	#Argsort the file to find where and which file they are located
-	pidSortedIndexes = np.argsort(pid)
+	#Create an attribute for the size and the number of particles this file
+	hdffile.attrs["partOffset"]=GadPartOffsets[i]
+	hdffile.attrs["fileNumPart"]=GadNumPartFile[i]
 
-	print(Rank,"done argsorting the Particle ID array now on to outputting the data")
+	#Output the dataset with the particle ID's
+	hdffile.create_dataset("pidSortedIndexes",data=pidSortedIndexes[GadPartOffsets[i]:GadPartOffsets[i+1]], compression='gzip', compression_opts=7)
+	
+	hdffile.close()
 
-	#Output the data in the same splitting that is present in the gadget files
-	for i in range(NumFiles):
+#Free the memory to be used again
+del pid
+del pidSortedIndexes
 
-		hdffile = h5py.File(OutputDir+"/snapshot_%03d.WWpidsortindex.%i.hdf" %(snap,i),"w")
-		hdffile.create_dataset("pidSortedIndexes",data=pidSortedIndexes[GadFileOffsets[i]:GadFileOffsets[i+1]], compression='gzip', compression_opts=7)
-		hdffile.create_dataset("fileOffsets",data=GadFileOffsets)
-		hdffile.close()
-
-	#Free the memory to be used again
-	del pid
-	del pidSortedIndexes
-
-	print(Rank,"Done creating file for snapshot",snap,"in",time.time()-start)
+print("Done creating file for snapshot",snap,"in",time.time()-start)
 
