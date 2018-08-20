@@ -162,21 +162,42 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 	#Make the ID's unique and sorted while returning the inverse
 	allExtractParticleIDs, inverseIndxes = np.unique(allExtractParticleIDs,return_inverse=True)
 
-	#Boolean to extract what indexes is needed from the WhereWolf part sorted Indexes file
-	Sel = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
-	Sel[allExtractParticleIDs-1] = True
+	# #Boolean to extract what indexes is needed from the WhereWolf part sorted Indexes file
+	# Sel = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
+	# Sel[allExtractParticleIDs-1] = True
 
-	WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[isnap]+".WWpidsortindex.hdf","r")
+	#Roll the fileno so each thread starts on a different file
+	ifiles=np.arange(0,GadHeaderInfo["NumFiles"],1,dtype=int)
+	ifiles = np.roll(ifiles,int(np.floor(Rank * GadHeaderInfo["NumFiles"]/size)))
 
-	partLoc = WWPartSortedFile["pidSortedIndexes"][Sel]
-	GadFileOffsets = WWPartSortedFile["fileOffsets"][:]
+	#Create all of the file offsets
+	GadFileOffsets = np.zeros(GadHeaderInfo["NumFiles"]+1,dtype=np.int64)
 
-	WWPartSortedFile.close()
+	partLoc = np.zeros(allExtractParticleIDs.size,dtype=np.int64)
 
+	for i in ifiles:
+
+		WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[isnap]+".WWpidsortindex.%i.hdf" %i,"r")
+		GadFileOffsets[i] = WWPartSortedFile.attrs["partOffset"][...]
+		GadNumPartFile = WWPartSortedFile.attrs["fileNumPart"][...]
+
+		offset = np.sum(allExtractParticleIDs<GadFileOffsets[i])
+
+		fileLoc = (allExtractParticleIDs[(allExtractParticleIDs>=GadFileOffsets[i]) & (allExtractParticleIDs<GadFileOffsets[i]+GadNumPartFile)] - GadFileOffsets[i] - 1).astype(np.int64)
+
+		fileNpart = fileLoc.size
+
+		LoadBool = np.zeros(GadNumPartFile,dtype=bool)
+		LoadBool[fileLoc] = True
+
+		partLoc[offset:offset+fileNpart] = WWPartSortedFile["pidSortedIndexes"][LoadBool]
+
+		WWPartSortedFile.close()
+
+	#Update the final offset
+	GadFileOffsets[-1] = GadFileOffsets[-2] + GadNumPartFile
 	# if(Rank==0):
 	# 	print("Done getting the Sorted Indexes in",time.time()-start)
-
-	del Sel
 
 
 	#Make it unique so the ID's can loaded and return inverse
@@ -190,10 +211,6 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 	pos = np.zeros([npartExtract,3],dtype=np.float32)
 	vel = np.zeros([npartExtract,3],dtype=np.float32)
 
-	#Roll the fileno so each thread starts on a different file
-	ifiles=np.arange(0,GadHeaderInfo["NumFiles"],1,dtype=int)
-	ifiles = np.roll(ifiles,int(np.floor(Rank * GadHeaderInfo["NumFiles"]/size)))
-
 
 	# start = time.time()
 
@@ -204,7 +221,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 		offset = np.sum(partLoc<GadFileOffsets[i])
 
 		# Find which particle are within this file
-		fileLoc = (partLoc[(partLoc>=GadFileOffsets[i]) & (partLoc<GadFileOffsets[i+1])] - GadFileOffsets[i]).astype(int)
+		fileLoc = (partLoc[(partLoc>=GadFileOffsets[i]) & (partLoc<GadFileOffsets[i+1])] - GadFileOffsets[i]).astype(np.int64)
 
 		fileNpart = fileLoc.size
 
