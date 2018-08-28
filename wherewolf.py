@@ -97,13 +97,13 @@ for isnap in range(opt.numsnaps):
 
 	#Read the VELOCIraptor property file and the treefrog tree
 	snapdata, totnumhalos, atime  = WWio.ReadPropertyFile(opt.VELFileList[opt.Snapshot_offset + isnap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
-	treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[opt.Snapshot_offset + isnap])
+	endSim, treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[opt.Snapshot_offset + isnap])
 
 	#Open up the VELOCIraptor files to read the halo particle info
 	filenumhalos,VELnumfiles,pfiles,upfiles,grpfiles = WWio.OpenVELOCIraptorFiles(opt.VELFileList[opt.Snapshot_offset + isnap])
 
 
-	if((isnap<fsnap) & (numhalos>0)):
+	if((not endSim) & (numhalos>0)):
 
 		# npart = WWio.ReadVELOIraptorCatalogueNpartSplit(VELFilename,ihalostart[Rank][snapindex],ihaloend[Rank][snapindex],VELfilenumhalos)
 		# tree = WWio.ReadVELOCIraptorTreeDescendant(TreeFilename,ihalostart[Rank][snapindex],ihaloend[Rank][snapindex])
@@ -239,7 +239,7 @@ for isnap in range(opt.numsnaps):
 
 
 	#Try to find halos to track if not at the last snapshot
-	if((isnap<fsnap) & (ntrack>0)):
+	if((not endSim) & (ntrack>0)):
 		startPartOffsets,startPIDs  = StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,allPartOffsets[nTracked:],GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat)
 
 	#Update the nextPIDS and the newPartOffsets

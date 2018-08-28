@@ -468,12 +468,18 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 	if (os.path.isfile(filename)==False):
 		raise SystemExit("%s not found" %filename)
 
+	#Boolean to keep track if this snapshot is at the end of the simulation
+	endSim = True
+
 	tree = { "Descen": [], "Rank": [],"Merits": []}
 
 	with h5py.File(filename,"r") as hdffile:
 
 		#See if the dataset exits
 		if("DescOffsets" in hdffile.keys()):
+
+			#If this dataset exist then this snapshot is not the end of the simulation
+			endSim = False
 
 			Numdescen = np.asarray(hdffile["NumDesc"])
 
@@ -503,7 +509,7 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 			del Numdescen
 
 
-	return tree
+	return endSim, tree
 
 def SetupParallelIO(opt,nprocess):
 
