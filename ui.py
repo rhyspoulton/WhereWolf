@@ -13,6 +13,7 @@ class WWOptions(object):
 		#Set the defaults for the parameters
 		self.outputdir = tmpOpt.outputdir
 		self.numsnaps = tmpOpt.numsnaps
+		self.Snapshot_offset = tmpOpt.Snapshot_offset
 		self.GadFileList = []
 		self.VELFileList = []
 		self.TreeFileList = []
@@ -25,7 +26,8 @@ class WWOptions(object):
 		self.NumSnapsWithinCoreMerge = 3
 
 		self.Temporal_haloidval = 1000000000000
-		self.Snapshot_offset = 0
+
+		self.iverbose = 0
 
 		#Lets check if the file exists
 		# if(not os.path.isfile(filename)):
@@ -75,8 +77,8 @@ class WWOptions(object):
 				elif(line[0]=="Temporal_haloidval"):
 					self.Temporal_haloidval = np.int64(line[1])
 
-				elif(line[0]=="Snapshot_offset"):
-					self.Snapshot_offset = int(line[1])
+				elif(line[0]=="iverbose"):
+					self.iverbose = np.int64(line[1])
 
 				else:
 					raise OSError("Invalid config option %s, please only use the options in the sample config file" %line[0])

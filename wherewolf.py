@@ -18,13 +18,25 @@ size = comm.Get_size()
 
 #Get all the command line options
 parser = argparse.ArgumentParser()
-parser.add_argument("-c",action="store",type=argparse.FileType('r'),dest="configfile",help="Configuration file (WhereWolf.cfg)")
-parser.add_argument("-s",action="store",type=int,dest="numsnaps",help="Number of snapshots")
-parser.add_argument("-o",action="store",dest="outputdir",help="Output directory")
+parser.add_argument("-c",action="store",type=argparse.FileType('r'),dest="configfile",help="Configuration file (wherewolf.cfg)",required=True)
+parser.add_argument("-n",action="store",type=int,dest="numsnaps",help="Number of snapshots",required=True)
+parser.add_argument("-o",action="store",dest="outputdir",help="Output directory",required=True)
+parser.add_argument("-s",action="store",default=0,type=int,dest="Snapshot_offset",help="The offset if not starting at snapshot 0 in the simulation, default: 0")
 tmpOpt = parser.parse_args()
+
+#All the data to add for the wherewolf files
+haloFields=["ID","Mass_200crit","Mass_200mean","Mass_tot","R_200crit","R_200mean","Xc","Yc","Zc","VXc","VYc","VZc","sigV","Vmax","Rmax","hostHaloID","npart","Num_of_files","Group_Size","Particle_IDs","Particle_IDs_unbound","Parent_halo_ID"]
+updatetreeFields=["ID","Descendants"]
+apptreeFields=["ID","NumDesc","Ranks","Descendants"]
+treeDtype={"ID":"uint64","NumDesc":"int32","Ranks":"int32","Descendants":"uint64"}
+WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart","Merged","notMerged","Match","MatchStart","MatchCore","MatchStartCore","Mixed","ConnectPartLimit","Connect","contNSnap"]
+
 
 #Read the options from the config file
 opt = WWOptions(tmpOpt)
+
+#Check if a WhereWolf restart file exists and read it in if it does
+newPartOffsets, nextPIDs, prevappendTreeData, prevNhalo, TrackData = WWio.CheckForWhereWolfRestartFile(Rank, opt, apptreeFields)
 
 #The root process tells each process what halos they are to do
 if Rank==0:
@@ -39,21 +51,9 @@ ihaloends = comm.bcast(ihaloends,root=0)
 
 totstart = time.time()
 
-#All the data to add for the wherewolf files
-haloFields=["ID","Mass_200crit","Mass_200mean","Mass_tot","R_200crit","R_200mean","Xc","Yc","Zc","VXc","VYc","VZc","sigV","Vmax","Rmax","hostHaloID","npart","Num_of_files","Group_Size","Particle_IDs","Particle_IDs_unbound","Parent_halo_ID"]
-updatetreeFields=["ID","Descendants"]
-apptreeFields=["ID","NumDesc","Ranks","Descendants","endDesc"]
-treeDtype={"ID":"uint64","NumDesc":"int32","Ranks":"int32","Descendants":"uint64","endDesc":"uint64"}
-WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart","Merged","notMerged","Match","MatchStart","MatchCore","MatchStartCore","Mixed","ConnectPartLimit","Connect","contNSnap"]
-
 #Setup the stat file
 if(Rank==0):
 	WWstatfile.write("# "+" ".join(WWstatkeys) + "\n")
-
-#Varibale to keep track of what halos to track in each snapshot
-TrackData={"TrackDisp":[],"prevpos":[],"progenitor":[],"endDesc":[],"mbpSel":[],"boundSel":[],"Conc":[],"host":[],"CheckMerged":[],"TrackedNsnaps":[],"idel":[],"Rvir":[],"Mvir":[]}
-
-newPartOffsets=None;nextPIDs=None;prevappendTreeData=None;prevNhalo=None
 
 #Boolean array to keep track if halos have been tracked in the snapshot
 TrackFlag = np.zeros(opt.numsnaps,dtype=bool)
@@ -65,7 +65,7 @@ for isnap in range(opt.numsnaps):
 	WWstat ={key:0 for key in WWstatkeys}
 
 	if(Rank==0):
-		print("Doing snap",isnap)
+		print("Doing snap",isnap + opt.Snapshot_offset)
 
 	#Check if any process has any halos
 	if(np.sum(ihaloends[:,isnap])==0):
@@ -85,7 +85,7 @@ for isnap in range(opt.numsnaps):
 
 	#Extract the header info from the gadget snapshot
 	if Rank==0:
-		GadHeaderInfo = WWio.GetGadFileInfo(opt.GadFileList[isnap])
+		GadHeaderInfo = WWio.GetGadFileInfo(opt.GadFileList[opt.Snapshot_offset + isnap])
 	else:
 		GadHeaderInfo=None
 
@@ -96,11 +96,11 @@ for isnap in range(opt.numsnaps):
 	nTracked = 0
 
 	#Read the VELOCIraptor property file and the treefrog tree
-	snapdata, totnumhalos, atimex  = WWio.ReadPropertyFile(opt.VELFileList[isnap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
-	treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[isnap])
+	snapdata, totnumhalos, atime  = WWio.ReadPropertyFile(opt.VELFileList[opt.Snapshot_offset + isnap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
+	treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[opt.Snapshot_offset + isnap])
 
 	#Open up the VELOCIraptor files to read the halo particle info
-	filenumhalos,VELnumfiles,pfiles,upfiles,grpfiles = WWio.OpenVELOCIraptorFiles(opt.VELFileList[isnap])
+	filenumhalos,VELnumfiles,pfiles,upfiles,grpfiles = WWio.OpenVELOCIraptorFiles(opt.VELFileList[opt.Snapshot_offset + isnap])
 
 
 	if((isnap<fsnap) & (numhalos>0)):
@@ -130,7 +130,9 @@ for isnap in range(opt.numsnaps):
 
 	else:
 
-		trackIndx = np.array([])	
+		tracknpart = np.array([])
+
+		trackIndx = np.array([])
 
 	# Get the total amount of halos to track from all processes
 	ntrack = np.int64(len(trackIndx))
@@ -149,7 +151,7 @@ for isnap in range(opt.numsnaps):
 	if((NtotTrack==0) & (NtrackNextSnap==0)):
 		if(Rank==0):
 			print("All the processes have found nothing to track at this snapshot")
-		WWio.CloseVELOCIraptorFiles(opt.VELFileList[isnap],VELnumfiles,pfiles,upfiles,grpfiles)
+		WWio.CloseVELOCIraptorFiles(opt.VELFileList[opt.Snapshot_offset + isnap],VELnumfiles,pfiles,upfiles,grpfiles)
 		continue
 
 	if(Rank==0):
@@ -205,7 +207,7 @@ for isnap in range(opt.numsnaps):
 
 
 		#Need to close the VELOCIraptor files before outputing the data
-		WWio.CloseVELOCIraptorFiles(opt.VELFileList[isnap],VELnumfiles,pfiles,upfiles,grpfiles)
+		WWio.CloseVELOCIraptorFiles(opt.VELFileList[opt.Snapshot_offset + isnap],VELnumfiles,pfiles,upfiles,grpfiles)
 
 		#Find the total amount of halos to be appended
 		Nappend = len(appendHaloData["ID"])
@@ -223,7 +225,7 @@ for isnap in range(opt.numsnaps):
 
 			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
 			# The file is for the previous snapshot
-			WWio.OutputWhereWolfTreeData(opt,isnap-1,prevappendTreeData,prevupdateTreeData)
+			WWio.OutputWhereWolfTreeData(opt,opt.Snapshot_offset + isnap-1,prevappendTreeData,prevupdateTreeData)
 
 		prevappendTreeData=appendTreeData
 		
@@ -233,7 +235,7 @@ for isnap in range(opt.numsnaps):
 
 	else:
 		# Close all the files
-		WWio.CloseVELOCIraptorFiles(opt.VELFileList[isnap],VELnumfiles,pfiles,upfiles,grpfiles)
+		WWio.CloseVELOCIraptorFiles(opt.VELFileList[opt.Snapshot_offset + isnap],VELnumfiles,pfiles,upfiles,grpfiles)
 
 
 	#Try to find halos to track if not at the last snapshot
@@ -265,11 +267,15 @@ for isnap in range(opt.numsnaps):
 	comm.barrier()	
 
 	if(Rank==0):
-		print(isnap,"Done in",time.time()-start)
+		print(isnap + opt.Snapshot_offset,"Done in",time.time()-start)
 
 		for field in WWstatkeys:
 			WWstatfile.write("%i "%ALLWWstat[field])
 		WWstatfile.write("\n")
+
+
+if(len(TrackData["progenitor"])>0):
+	WWio.OutputWhereWolfRestartFile(Rank, opt, isnap, TrackData, newPartOffsets, nextPIDs, prevappendTreeData, prevNhalo)
 
 #Check if anything has been tracked
 if(any(TrackFlag)):
@@ -282,7 +288,7 @@ if(any(TrackFlag)):
 		WWstatfile.close()
 
 		#Output the final tree file
-		WWio.OutputWhereWolfTreeData(opt,isnap,appendTreeData,None)
+		WWio.OutputWhereWolfTreeData(opt,opt.Snapshot_offset + isnap,appendTreeData,None)
 		TrackFlag[isnap] = True
 
 
@@ -294,7 +300,7 @@ if(any(TrackFlag)):
 			if(TrackFlag[isnap]):
 				treefilelist.write( opt.outputdir+"/snapshot_%03d.VELOCIraptor.WW.tree\n" %(isnap+opt.Snapshot_offset))
 			else:
-				treefilelist.write(opt.TreeFileList[isnap] + "\n")
+				treefilelist.write(opt.TreeFileList[opt.Snapshot_offset + isnap] + "\n")
 		treefilelist.close()
 
 		# snaplist = open(OutputDir+"snaplist.txt","w")

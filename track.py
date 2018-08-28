@@ -543,8 +543,8 @@ def ContinueTrack(opt,snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffs
 		appendTreeData["Ranks"].append(0)
 		appendTreeData["NumDesc"].append(0)
 
-		#For debugging
-		appendTreeData["endDesc"].append(TrackData["endDesc"][i])
+		# #For debugging
+		# appendTreeData["endDesc"].append(TrackData["endDesc"][i])
 
 		if(TrackData["TrackedNsnaps"][i]==0):
 			prevupdateTreeData["ID"].append(progen)
@@ -618,17 +618,9 @@ def ContinueTrack(opt,snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffs
 	#Update the TrackData by removing all the halos to be removed
 	for i in range(len(TrackData["progenitor"])-1,-1,-1):
 		if(TrackData["idel"][i]):
-			del TrackData["progenitor"][i]
-			del TrackData["prevpos"][i]
-			del TrackData["TrackDisp"][i]
-			del TrackData["endDesc"][i]
-			del TrackData["mbpSel"][i]
-			del TrackData["boundSel"][i]
-			del TrackData["Conc"][i]
-			del TrackData["host"][i]
-			del TrackData["CheckMerged"][i]
-			del TrackData["TrackedNsnaps"][i]
-			del TrackData["idel"][i]
+			for field in TrackData.keys():
+				del TrackData[field][i]
+
 
 
 

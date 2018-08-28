@@ -177,7 +177,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 
 	for i in ifiles:
 
-		WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[isnap]+".WWpidsortindex.%i.hdf" %i,"r")
+		WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.%i.hdf" %i,"r")
 		GadFileOffsets[i] = WWPartSortedFile.attrs["partOffset"][...]
 		GadNumPartFile = WWPartSortedFile.attrs["fileNumPart"][...]
 
@@ -195,7 +195,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 		WWPartSortedFile.close()
 
 	#Update the final offset
-	GadFileOffsets[-1] = GadFileOffsets[-2] + GadNumPartFile
+	GadFileOffsets[-1] = GadHeaderInfo["TotNpart"]
 	# if(Rank==0):
 	# 	print("Done getting the Sorted Indexes in",time.time()-start)
 
@@ -234,7 +234,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 			# LoadBool[fileLoc] = True
 			LoadBool2[fileLoc,:] = True
 
-			GadFile = h5py.File(opt.GadFileList[isnap]+".%i.hdf5" %i,"r")
+			GadFile = h5py.File(opt.GadFileList[opt.Snapshot_offset + isnap]+".%i.hdf5" %i,"r")
 
 			#Extract the data from the file
 			# newPartIDs[offset:offset+fileNpart] = GadFile["PartType1"]["ParticleIDs"][LoadBool]
@@ -342,9 +342,9 @@ def ReadVELOIraptorNumhalos(opt):
 
 	numhalos = np.zeros(opt.numsnaps,dtype=np.uint64)
 
-	for i in range(opt.numsnaps):
+	for i,snap in enumerate(range(opt.Snapshot_offset,opt.Snapshot_offset+opt.numsnaps)):
 
-		filename= opt.VELFileList[i] + ".properties.0"
+		filename= opt.VELFileList[snap] + ".properties.0"
 
 		hdffile = h5py.File(filename,"r")
 
@@ -716,6 +716,7 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 		#Done with the updateTreeData
 		del updateTreeData
 	else:
+
 		#Find the location of thier direct descendants from the offsets
 		TFDescOffsets = np.asarray(treefile["DescOffsets"])
 		#Now load in the descendant data
@@ -823,17 +824,17 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 
 		#### For debugging ####
 
-		debugdata = np.asarray(treefile["ID"])
+		# debugdata = np.asarray(treefile["ID"])
 
-		alldebugdata = np.empty(dsetSize + Nappend,dtype=debugdata.dtype)
+		# alldebugdata = np.empty(dsetSize + Nappend,dtype=debugdata.dtype)
 
-		alldebugdata[:dsetSize] = debugdata
-		alldebugdata[dsetSize:] = appendTreeData["endDesc"]
+		# alldebugdata[:dsetSize] = debugdata
+		# alldebugdata[dsetSize:] = appendTreeData["endDesc"]
 
-		WWtreefile.create_dataset("endDesc",data=alldebugdata)
+		# WWtreefile.create_dataset("endDesc",data=alldebugdata)
 
-		del debugdata
-		del alldebugdata
+		# del debugdata
+		# del alldebugdata
 		
 		#Done with the appendTreeData
 		del appendTreeData
@@ -1468,6 +1469,139 @@ def GetPartSortedIndexes(comm,Rank,GadFileBasename,GadHeaderInfo,snap,Outputdir)
 
 	return pidSortedIndexes,GadFileOffsets
 
+def CheckForWhereWolfRestartFile(Rank, opt, apptreeFields):
+	"""
+	Function to Check for the existence of a WhereWolf restart file and read it
+	"""
+
+	if(Rank==0):
+		print("Checking for restart file in",opt.outputdir)
+
+	#Set the default values if the restart file does not exist
+	newPartOffsets=None;nextPIDs=None;prevappendTreeData=None;prevNhalo=None
+	#Varibale to keep track of what halos to track in each snapshot
+	TrackData={"TrackDisp":[],"prevpos":[],"progenitor":[],"endDesc":[],"mbpSel":[],"boundSel":[],"Conc":[],"host":[],"CheckMerged":[],"TrackedNsnaps":[],"idel":[],"Rvir":[],"Mvir":[]}
+
+	filename = opt.outputdir+"/snapshot_%03d.WW.restart.%i" %(opt.Snapshot_offset-1,Rank)
+
+	#Check if the restart file exists
+	if(os.path.isfile(filename)):
+
+		if(opt.iverbose): print(Rank,"has found a restart file and is reading it in")
+
+		#Open up the restart file
+		WWRestartFile = h5py.File(filename,"r")
+
+		prevNhalo = WWRestartFile.attrs["prevNhalo"][...]
+
+		selOffsets = np.asarray(WWRestartFile["selOffsets"])[:-1].tolist()
+
+
+		#Extract all the data in TrackData
+		for field in TrackData.keys():
+
+			if((field=="mbpSel") | (field=="boundSel")):
+
+				TrackData[field] = np.split(np.asarray(WWRestartFile[field]),selOffsets)
+
+			elif(field=="CheckMerged"):
+
+				CheckMergedOffset = np.asarray(WWRestartFile["CheckMergedOffset"])[:-1]
+
+				AllCheckMergedHalos = np.split(np.asarray(WWRestartFile["AllCheckMergedHalos"]),CheckMergedOffset)
+
+				AllMergedIndicator = np.split(np.asarray(WWRestartFile["AllMergedIndicator"]),CheckMergedOffset)
+
+
+				# Put the data into the check merged dictionary
+				TrackData[field] = [dict(zip(iter(IDs),iter(NumSnapsWithinRvir))) for IDs, NumSnapsWithinRvir in zip(AllCheckMergedHalos,AllMergedIndicator)]
+
+				del CheckMergedOffset
+
+			else:
+
+				TrackData[field] = np.asarray(WWRestartFile[field]).tolist()
+
+		del selOffsets
+
+		prevappendTreeData={key:[] for key in apptreeFields}
+
+		for field in apptreeFields:
+
+			prevappendTreeData[field] = np.asarray(WWRestartFile[field])
+
+		nextPIDs = np.asarray(WWRestartFile["nextPIDs"])
+
+		newPartOffsets = np.asarray(WWRestartFile["newPartOffsets"])
+
+
+		if(opt.iverbose): print(Rank,"Has done loading in the restart file")
+
+	else:
+
+		if(opt.iverbose): print(Rank,"has not found a restart file continuing")
+
+	return newPartOffsets, nextPIDs, prevappendTreeData, prevNhalo, TrackData
+
+
+def OutputWhereWolfRestartFile(Rank, opt, snap, TrackData, newPartOffsets, nextPIDs, prevappendTreeData, prevNhalo):
+	"""
+	Function to create the WhereWolf restart file
+	"""
+
+	if(opt.iverbose): print(Rank,"is outputting a restart file")
+
+	filename = opt.outputdir + "/snapshot_%03d.WW.restart.%i" %(snap+opt.Snapshot_offset,Rank)
+
+	WWRestartFile = h5py.File(filename,"w")
+
+	numentrys = len(TrackData["progenitor"])
+	AllCheckMergedHalos = []
+	AllMergedIndicator = []
+
+	for field in TrackData.keys():
+
+
+		if((field=="mbpSel") | (field=="boundSel")):
+
+			if("selOffsets" not in WWRestartFile.keys()):
+
+				selOffsets = np.cumsum(list(map(len,TrackData[field])))
+
+				WWRestartFile.create_dataset("selOffsets",data=selOffsets,dtype=np.uint64)
+
+			allSel = np.concatenate(TrackData[field])
+
+			WWRestartFile.create_dataset(field,data=allSel,dtype=bool)
+
+
+		elif(field=="CheckMerged"):
+
+			CheckMergedOffset = np.zeros(numentrys,dtype=np.int64)
+
+			for i,entry in enumerate(TrackData[field]):
+
+				CheckMergedOffset[i] = len(entry) + CheckMergedOffset[i-1]
+
+				AllCheckMergedHalos.extend(entry.keys())
+				AllMergedIndicator.extend(entry.values())
+
+			WWRestartFile.create_dataset("CheckMergedOffset",data=CheckMergedOffset,dtype=np.uint64)
+			WWRestartFile.create_dataset("AllCheckMergedHalos",data=AllCheckMergedHalos,dtype=np.uint64)
+			WWRestartFile.create_dataset("AllMergedIndicator",data=AllMergedIndicator,dtype=np.int16)
+
+		else:
+			WWRestartFile.create_dataset(field,data=np.asarray(TrackData[field]))
+
+	# Also add the appendTreeData and prevNhalo to the restart file
+	WWRestartFile.attrs["prevNhalo"] = prevNhalo
+
+	for field in prevappendTreeData.keys():
+
+		WWRestartFile.create_dataset(field,data=prevappendTreeData[field])
+
+	WWRestartFile.create_dataset("newPartOffsets",data=newPartOffsets)
+	WWRestartFile.create_dataset("nextPIDs",data=nextPIDs)
 
 
 
