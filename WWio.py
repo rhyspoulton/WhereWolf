@@ -93,6 +93,7 @@ def ReadGadgetPosVel(Rank,size,GadFilename,ExtractParticleIDs,Gadnumfiles,Gadfil
 
 def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnumfiles,VELfilenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextpids):
 
+	if(opt.iverbose): print("Loading in the halo particles from the gadget file(s)")
 	start = time.time()
 
 	if(trackIndx.size!=0):
@@ -686,7 +687,7 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 	treefile = h5py.File(opt.TreeFileList[snap] + ".tree","r")
 
 	#Open up a .WW file to output all the tree data
-	WWtreefile = h5py.File(opt.outputdir+"/snapshot_%03d.VELOCIraptor.WW.tree" %(snap+opt.Snapshot_offset),"w")
+	WWtreefile = h5py.File(opt.outputdir+"/snapshot_%03d.VELOCIraptor.WW.tree" %(snap),"w")
 
 	#Give the WW treefile the same header infor as the treefrog file
 	for attrsField in treefile.attrs.keys():
@@ -721,7 +722,7 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 
 		#Done with the updateTreeData
 		del updateTreeData
-	else:
+	elif("DescOffsets" in treefile.keys()):
 
 		#Find the location of thier direct descendants from the offsets
 		TFDescOffsets = np.asarray(treefile["DescOffsets"])
@@ -1541,7 +1542,7 @@ def CheckForWhereWolfRestartFile(Rank, opt, apptreeFields):
 		newPartOffsets = np.asarray(WWRestartFile["newPartOffsets"])
 
 
-		if(opt.iverbose): print(Rank,"Has done loading in the restart file")
+		# if(opt.iverbose): print(Rank,"Has done loading in the restart file")
 
 	else:
 
