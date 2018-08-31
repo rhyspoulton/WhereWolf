@@ -93,7 +93,8 @@ def ReadGadgetPosVel(Rank,size,GadFilename,ExtractParticleIDs,Gadnumfiles,Gadfil
 
 def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnumfiles,VELfilenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextpids):
 
-	if(opt.iverbose): print("Loading in the halo particles from the gadget file(s)")
+	if(opt.iverbose):
+		if(Rank==0): print("Loading in the halo particles from the gadget file(s)")
 	start = time.time()
 
 	if(trackIndx.size!=0):

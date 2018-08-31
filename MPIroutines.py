@@ -1,7 +1,7 @@
 import numpy as np 
 from mpi4py import MPI
 
-def UpdateIDsoffsets(comm,Rank,size,appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData,prevNhalo,HALOIDVAL=1000000000000):
+def UpdateIDsoffsets(comm,Rank,size,snap,appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData,prevNhalo,HALOIDVAL=1000000000000):
 
 
 
@@ -46,7 +46,7 @@ def UpdateIDsoffsets(comm,Rank,size,appendHaloData,prevupdateTreeData,appendTree
 	appendTreeData["ID"] += IDOffset
 
 	if(prevappendTreeData is not None):
-		sel = (prevappendTreeData["Descendants"]%HALOIDVAL-1).astype(int,copy=False) >= prevNhalo
+		sel = ((prevappendTreeData["Descendants"]%HALOIDVAL-1).astype(int,copy=False) >= prevNhalo) & ((prevappendTreeData["Descendants"]/HALOIDVAL).astype(int,copy=False)==snap)
 		prevappendTreeData["Descendants"][sel] += IDOffset
 
 

@@ -577,25 +577,25 @@ def ContinueTrack(opt,snap,fsnap,TrackData,allpid,allpartpos,allpartvel,partOffs
 
 
 		# Check if the halo still has a bound center of at least 5 particles
-		# if((np.sum(TrackData["mbpSel"][i])<=5) & (snap<fsnap)): 
+		if((np.sum(TrackData["mbpSel"][i])<=5) & (snap<fsnap)):
 		
 				
-		# 	progenIndx = -1
+			progenIndx = -1
 
-		# 	#Find the halo it has merged with if it has been lost
-		# 	if(TrackData["TrackDisp"][i]):
-		# 		 MergeHalo(opt,meanpos,partIDs[TrackData["boundSel"][i]],-1,snapdata,TrackData["host"][i],filenumhalos,pfiles,upfiles,grpfiles,appendTreeData,pos_tree,WWstat)
-		# 		 WWstat["MergedMBP"]+=1
+			#Find the halo it has merged with if it has been lost
+			if(TrackData["TrackDisp"][i]):
+				 MergeHalo(opt,meanpos,partIDs[TrackData["boundSel"][i]],-1,snapdata,TrackData["host"][i],filenumhalos,pfiles,upfiles,grpfiles,appendTreeData,pos_tree,WWstat)
+				 # WWstat["MergedMBP"]+=1
 
-		# 	#If not to be tracked until dispersed then connect it up with its endDesc
-		# 	else:
-		# 		appendTreeData["Descendants"][-1] = TrackData["endDesc"][i]
-		# 		appendTreeData["NumDesc"][-1] = 1
-		# 		WWstat["ConnectMBP"]+=1
+			#If not to be tracked until dispersed then connect it up with its endDesc
+			else:
+				appendTreeData["Descendants"][-1] = TrackData["endDesc"][i]
+				appendTreeData["NumDesc"][-1] = 1
+				# WWstat["ConnectMBP"]+=1
 
-		# 	#Mark the halo to be deleted
-		# 	TrackData["idel"][i] = 1
-		# 	continue
+			#Mark the halo to be deleted
+			TrackData["idel"][i] = 1
+			continue
 
 		WWstat["contNSnap"]+=1
 

@@ -221,7 +221,7 @@ for isnap in range(opt.numsnaps):
 		#If the number of threads is > 1 then need to update IDs and gather the TreeData onto the root thread
 		if(size>1):
 
-			appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData = MPIroutines.UpdateIDsoffsets(comm,Rank,size,appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData,prevNhalo)	
+			appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData = MPIroutines.UpdateIDsoffsets(comm,Rank,size,snap,appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData,prevNhalo)
 
 			prevappendTreeData,prevupdateTreeData=MPIroutines.GatheroutputTreeData(comm,Rank,size,prevappendTreeData,prevupdateTreeData,treeDtype)
 
@@ -322,9 +322,9 @@ if(any(TrackFlag)):
 
 			#Write out the WW treefile name if it has been tracked or the original tree name if not
 			if(TrackFlag[isnap]):
-				treefilelist.write( opt.outputdir+"/snapshot_%03d.VELOCIraptor.WW\n" %snap)
+				treefilelist.write( opt.outputdir+"/snapshot_%03d.VELOCIraptor.WW\n" %(isnap+opt.Snapshot_offset))
 			else:
-				treefilelist.write(opt.TreeFileList[snap] + "\n")
+				treefilelist.write(opt.TreeFileList[isnap+opt.Snapshot_offset] + "\n")
 		treefilelist.close()
 
 		if(RestartFlag):
@@ -333,7 +333,7 @@ if(any(TrackFlag)):
 			snaplist = open(opt.outputdir+"/snaplist.txt","w")
 
 		for isnap in range(opt.numsnaps):
-			snaplist.write(opt.VELFileList[snap] +"\n")
+			snaplist.write(opt.VELFileList[isnap+opt.Snapshot_offset] +"\n")
 		snaplist.close()
 
 		print("Tracking done in",time.time() - totstart)
