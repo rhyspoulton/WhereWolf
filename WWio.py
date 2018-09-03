@@ -270,13 +270,22 @@ def GetGadFileInfo(GadFileBaseName):
 	GadFile = h5py.File(GadFileName,"r")
 
 	
-	GadHeaderInfo["TotNpart"] = np.sum(GadFile["Header"].attrs["NumPart_Total"])
+	GadHeaderInfo["TotNpart"] = np.sum(GadFile["Header"].attrs["NumPart_Total"],dtype=np.uint64)
 	GadHeaderInfo["BoxSize"] = GadFile["Header"].attrs["BoxSize"]
 	GadHeaderInfo["partMass"] = GadFile["Header"].attrs["MassTable"][1] # dark matter mass
 	GadHeaderInfo["h"] = GadFile["Header"].attrs["HubbleParam"]
 	GadHeaderInfo["NumFiles"] = int(GadFile["Header"].attrs["NumFilesPerSnapshot"])
 	GadHeaderInfo["Scalefactor"] = GadFile["Header"].attrs["Time"]
 	GadHeaderInfo["Redshift"] = GadFile["Header"].attrs["Redshift"]
+
+	if("NumPart_Total_HighWord" in GadFile["Header"].attrs):
+			#Find the base and the power for the number of particles
+		sel = np.uint64(np.where(GadFile["Header"].attrs["NumPart_Total_HighWord"]>0)[0][0])
+		base = np.uint64(GadFile["Header"].attrs["NumPart_Total_HighWord"][sel])
+		power = np.uint64(32 + sel)
+
+		#Add this number to the current TotNpart
+		TotNpart += np.power(base,power)
 
   
 	GadFile.close()

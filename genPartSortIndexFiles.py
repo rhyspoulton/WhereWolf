@@ -15,7 +15,7 @@ import sys
 
 
 if(len(sys.argv)<4):
-	raise SystemExit("Incorrect number of arguments parsed.\n \tUsage: mpirun -n <num threads> python genPartSortIndexFiles.py <Gadget folder input directory> <Output directory> <snapshot>\n")
+	raise SystemExit("Incorrect number of arguments parsed.\n \tUsage: python genPartSortIndexFiles.py <Gadget folder input directory> <Output directory> <snapshot>\n")
 
 
 try:
@@ -32,8 +32,22 @@ start = time.time()
 #Extract all the header info from the first file
 GadFilename = GadDir + "/snapshot_%03d.0.hdf5" %snap
 GadFile = h5py.File(GadFilename,"r")
-TotNpart = np.sum(GadFile["Header"].attrs["NumPart_Total"])
+TotNpart = np.sum(GadFile["Header"].attrs["NumPart_Total"],dtype=np.uint64)
 NumFiles = GadFile["Header"].attrs["NumFilesPerSnapshot"]
+
+if("NumPart_Total_HighWord" in GadFile["Header"].attrs):
+
+       #Find the base and the power for the number of particles
+       sel = np.uint64(np.where(GadFile["Header"].attrs["NumPart_Total_HighWord"]>0)[0][0])
+       base = np.uint64(GadFile["Header"].attrs["NumPart_Total_HighWord"][sel])
+       power = np.uint64(32 + sel)
+
+       #Add this number to the current TotNpart
+       TotNpart += np.power(base,power)
+
+#Lets check the number or particles has been read correctly
+if(TotNpart<=0):
+       raise IOError("Cannot determine the number of particle from the header")
 
 #State how much memory is needed
 print("To load in and sort",TotNpart,"particle IDs, this task will need minimum ",(2 * TotNpart * 8 )/( 1000**3),"GB of memory")
