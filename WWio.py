@@ -159,7 +159,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 
 
 	# # print("orig",allExtractParticleIDs)
-	# origIDs=allExtractParticleIDs
+	origIDs=allExtractParticleIDs
 
 	#Make the ID's unique and sorted while returning the inverse
 	allExtractParticleIDs, inverseIndxes = np.unique(allExtractParticleIDs,return_inverse=True)
@@ -168,92 +168,126 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 	# Sel = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
 	# Sel[allExtractParticleIDs-1] = True
 
-	#Roll the fileno so each thread starts on a different file
-	ifiles=np.arange(0,GadHeaderInfo["NumFiles"],1,dtype=int)
-	ifiles = np.roll(ifiles,int(np.floor(Rank * GadHeaderInfo["NumFiles"]/size)))
+	if(GadHeaderInfo["NumFiles"]==1):
+		#Open up the file
+		WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.hdf","r")
 
-	#Create all of the file offsets
-	GadFileOffsets = np.zeros(GadHeaderInfo["NumFiles"]+1,dtype=np.int64)
+		#Find the locations need to extact the indexes
+		LoadBool = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
+		LoadBool[allExtractParticleIDs-1]  =True
 
-	partLoc = np.zeros(allExtractParticleIDs.size,dtype=np.int64)
-
-	for i in ifiles:
-
-		WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.%i.hdf" %i,"r")
-		GadFileOffsets[i] = WWPartSortedFile.attrs["partOffset"][...]
-		GadNumPartFile = WWPartSortedFile.attrs["fileNumPart"][...]
-
-		offset = np.sum(allExtractParticleIDs<GadFileOffsets[i])
-
-		fileLoc = (allExtractParticleIDs[(allExtractParticleIDs>=GadFileOffsets[i]) & (allExtractParticleIDs<GadFileOffsets[i]+GadNumPartFile)] - GadFileOffsets[i] - 1).astype(np.int64)
-
-		fileNpart = fileLoc.size
-
-		LoadBool = np.zeros(GadNumPartFile,dtype=bool)
-		LoadBool[fileLoc] = True
-
-		partLoc[offset:offset+fileNpart] = WWPartSortedFile["pidSortedIndexes"][LoadBool]
+		#Extract the index from the file
+		partLoc = WWPartSortedFile["pidSortedIndexes"][LoadBool]
 
 		WWPartSortedFile.close()
 
-	#Update the final offset
-	GadFileOffsets[-1] = GadHeaderInfo["TotNpart"]
-	# if(Rank==0):
-	# 	print("Done getting the Sorted Indexes in",time.time()-start)
+		#Make it unique so the ID's can loaded and return inverse
+		partLoc,inverse = np.unique(partLoc,return_inverse=True)
+
+		#Set the locations need to extract
+		LoadBool = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
+		LoadBool2 = np.zeros([GadHeaderInfo["TotNpart"],3],dtype=bool)
+		LoadBool[partLoc] = True
+		LoadBool2[partLoc,:] = True
+
+		GadFile = h5py.File(opt.GadFileList[opt.Snapshot_offset + isnap]+".hdf5","r")
+
+		#Load in the desired particles
+		newPartIDs = GadFile["PartType1"]["ParticleIDs"][LoadBool]
+		pos = GadFile["PartType1"]["Coordinates"][LoadBool2]
+		vel = GadFile["PartType1"]["Velocities"][LoadBool2]
+
+		GadFile.close()
+
+		print("Particles ids are",np.all(newPartIDs==origIDs))
+
+	else:
+		#Roll the fileno so each thread starts on a different file
+		ifiles=np.arange(0,GadHeaderInfo["NumFiles"],1,dtype=int)
+		ifiles = np.roll(ifiles,int(np.floor(Rank * GadHeaderInfo["NumFiles"]/size)))
+
+		#Create all of the file offsets
+		GadFileOffsets = np.zeros(GadHeaderInfo["NumFiles"]+1,dtype=np.int64)
+
+		partLoc = np.zeros(allExtractParticleIDs.size,dtype=np.int64)
+
+		for i in ifiles:
+
+			WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.%i.hdf" %i,"r")
+			GadFileOffsets[i] = WWPartSortedFile.attrs["partOffset"][...]
+			GadNumPartFile = WWPartSortedFile.attrs["fileNumPart"][...]
+
+			offset = np.sum(allExtractParticleIDs<GadFileOffsets[i])
+
+			fileLoc = (allExtractParticleIDs[(allExtractParticleIDs>=GadFileOffsets[i]) & (allExtractParticleIDs<GadFileOffsets[i]+GadNumPartFile)] - GadFileOffsets[i] - 1).astype(np.int64)
+
+			fileNpart = fileLoc.size
+
+			LoadBool = np.zeros(GadNumPartFile,dtype=bool)
+			LoadBool[fileLoc] = True
+
+			partLoc[offset:offset+fileNpart] = WWPartSortedFile["pidSortedIndexes"][LoadBool]
+
+			WWPartSortedFile.close()
+
+		#Update the final offset
+		GadFileOffsets[-1] = GadHeaderInfo["TotNpart"]
+		# if(Rank==0):
+		# 	print("Done getting the Sorted Indexes in",time.time()-start)
 
 
-	#Make it unique so the ID's can loaded and return inverse
-	# start = time.time()
-	partLoc,inverse = np.unique(partLoc,return_inverse=True)
-	# print("Done unique in",time.time()-start)
+		#Make it unique so the ID's can loaded and return inverse
+		# start = time.time()
+		partLoc,inverse = np.unique(partLoc,return_inverse=True)
+		# print("Done unique in",time.time()-start)
 
 
-	# Arrays to store the data to be loaded 
-	# newPartIDs = np.zeros(npartExtract,dtype=np.int64)
-	pos = np.zeros([npartExtract,3],dtype=np.float32)
-	vel = np.zeros([npartExtract,3],dtype=np.float32)
+		# Arrays to store the data to be loaded 
+		# newPartIDs = np.zeros(npartExtract,dtype=np.int64)
+		pos = np.zeros([npartExtract,3],dtype=np.float32)
+		vel = np.zeros([npartExtract,3],dtype=np.float32)
 
 
-	# start = time.time()
+		# start = time.time()
 
-	for i in ifiles:
-		# print("Doing fileno",i)
+		for i in ifiles:
+			# print("Doing fileno",i)
 
-		#Find the offset for this file using the offsets
-		offset = np.sum(partLoc<GadFileOffsets[i])
+			#Find the offset for this file using the offsets
+			offset = np.sum(partLoc<GadFileOffsets[i])
 
-		# Find which particle are within this file
-		fileLoc = (partLoc[(partLoc>=GadFileOffsets[i]) & (partLoc<GadFileOffsets[i+1])] - GadFileOffsets[i]).astype(np.int64)
+			# Find which particle are within this file
+			fileLoc = (partLoc[(partLoc>=GadFileOffsets[i]) & (partLoc<GadFileOffsets[i+1])] - GadFileOffsets[i]).astype(np.int64)
 
-		fileNpart = fileLoc.size
+			fileNpart = fileLoc.size
 
-		#Check if there are any to load
-		if(fileNpart>0):
+			#Check if there are any to load
+			if(fileNpart>0):
 
-			#Create boolean arrays to select the data needed
-			# LoadBool = np.zeros(GadFileOffsets[i+1]-GadFileOffsets[i],dtype=bool)
-			LoadBool2 = np.zeros([GadFileOffsets[i+1]-GadFileOffsets[i],3],dtype=bool)
-			# LoadBool[fileLoc] = True
-			LoadBool2[fileLoc,:] = True
+				#Create boolean arrays to select the data needed
+				# LoadBool = np.zeros(GadFileOffsets[i+1]-GadFileOffsets[i],dtype=bool)
+				LoadBool2 = np.zeros([GadFileOffsets[i+1]-GadFileOffsets[i],3],dtype=bool)
+				# LoadBool[fileLoc] = True
+				LoadBool2[fileLoc,:] = True
 
-			GadFile = h5py.File(opt.GadFileList[opt.Snapshot_offset + isnap]+".%i.hdf5" %i,"r")
+				GadFile = h5py.File(opt.GadFileList[opt.Snapshot_offset + isnap]+".%i.hdf5" %i,"r")
 
-			#Extract the data from the file
-			# newPartIDs[offset:offset+fileNpart] = GadFile["PartType1"]["ParticleIDs"][LoadBool]
-			pos[offset:offset+fileNpart,:] = GadFile["PartType1"]["Coordinates"][LoadBool2].reshape(fileNpart,3)
-			vel[offset:offset+fileNpart,:] = GadFile["PartType1"]["Velocities"][LoadBool2].reshape(fileNpart,3)
+				#Extract the data from the file
+				# newPartIDs[offset:offset+fileNpart] = GadFile["PartType1"]["ParticleIDs"][LoadBool]
+				pos[offset:offset+fileNpart,:] = GadFile["PartType1"]["Coordinates"][LoadBool2].reshape(fileNpart,3)
+				vel[offset:offset+fileNpart,:] = GadFile["PartType1"]["Velocities"][LoadBool2].reshape(fileNpart,3)
 
-			GadFile.close()
+				GadFile.close()
 
-	
+		
 
-	#Convert to VELOCIraptor (physical uits)
-	# newPartIDs = newPartIDs[inverse][inverseIndxes]
-	pos = pos[inverse][inverseIndxes]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"]
-	vel = vel[inverse][inverseIndxes]*np.sqrt(GadHeaderInfo["Scalefactor"])
-	allExtractParticleIDs = allExtractParticleIDs[inverseIndxes]
+		#Convert to VELOCIraptor (physical uits)
+		# newPartIDs = newPartIDs[inverse][inverseIndxes]
+		pos = pos[inverse][inverseIndxes]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"]
+		vel = vel[inverse][inverseIndxes]*np.sqrt(GadHeaderInfo["Scalefactor"])
+		allExtractParticleIDs = allExtractParticleIDs[inverseIndxes]
 
-	# print(np.all(newPartIDs==origIDs))
+		# print(np.all(newPartIDs==origIDs))
 	
 	return allExtractParticleIDs,pos,vel,allPartOffsets
 
@@ -264,9 +298,14 @@ def GetGadFileInfo(GadFileBaseName):
 
 	GadHeaderInfo = {}
 
-	GadFileName=GadFileBaseName + ".0.hdf5"
+	#Lets check if this snapshot is a single file or multiple (mpi split)
+	GadFileName =GadFileBaseName + ".hdf5"
+	if(os.path.isfile(GadFileName)==False):
+		GadFileName = GadFileBaseName + ".0.hdf5"
+		if(os.path.isfile(GadFileName)== False):
+			raise IOError("Could not find file",GadFileName)
 
-	#Open up the first file to see if and how many files the data is splite across
+	#Open up the first file to see if and how many files the data is split across
 	GadFile = h5py.File(GadFileName,"r")
 
 	
@@ -279,13 +318,15 @@ def GetGadFileInfo(GadFileBaseName):
 	GadHeaderInfo["Redshift"] = GadFile["Header"].attrs["Redshift"]
 
 	if("NumPart_Total_HighWord" in GadFile["Header"].attrs):
+		#Lets see if it is populated
+		if(np.sum(GadFile["Header"].attrs["NumPart_Total_HighWord"])>0):
 			#Find the base and the power for the number of particles
-		sel = np.uint64(np.where(GadFile["Header"].attrs["NumPart_Total_HighWord"]>0)[0][0])
-		base = np.uint64(GadFile["Header"].attrs["NumPart_Total_HighWord"][sel])
-		power = np.uint64(32 + sel)
+			sel = np.uint64(np.where(GadFile["Header"].attrs["NumPart_Total_HighWord"]>0)[0][0])
+			base = np.uint64(GadFile["Header"].attrs["NumPart_Total_HighWord"][sel])
+			power = np.uint64(32 + sel)
 
-		#Add this number to the current TotNpart
-		TotNpart += np.power(base,power)
+			#Add this number to the current TotNpart
+			TotNpart += np.power(base,power)
 
   
 	GadFile.close()

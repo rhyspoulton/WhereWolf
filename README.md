@@ -6,11 +6,28 @@ This is a code to continue to track halos (or galaxies) after they have been los
 
 ## Running
 
-This code is run by typing:
+To make the reading of the gadget files much more efficient a mapping of the particle ID's needs to be created. The code genPartSortIndexFiles.py generates these files, it can be run by the command:
 
-mpirun -np \<# of cpus> python wherewolf.py -c wherewolf.cfg -s \<numsnaps> -o \<output directory>
+	python genPartSortIndexFiles.py <Gadget folder input directory> <Output directory> <snapshot>
 
-Note that WhereWolf is currently heavily I/O bound so there will be little difference in the timings for lots of MPI threads. Please see the example configuation file and update the full paths to the input filelist.
+Where this will need to be run for each <snapshot> desired (many of these can be run in parallel).
+
+Once they have been created for all of the snapshots desired, then 4 file-list need to be created all in snapshot order. These are
+
+1. List of the base gadget filenames for each snapshot (without the extension or mpi file number)
+2. List of the base VELOCIraptor filenames for each snapshot (without the .propeties or mpi file number)
+3. List of TreeFrog files for each snapshot
+4. List of the base filenames created in the command above (again without extension or mpi file number)
+
+These files needs to be updated in the "wherewolf.cfg" file. Please put the full paths to these files.
+
+WhereWolf is then run by the command:
+
+	mpirun -np <# of cpus> python wherewolf.py -c wherewolf.cfg -n <numsnaps> -o <output directory> [-s <snapshot offset>]
+
+Snapshot offset only needs to specfied if starting at a non-zero snapshot. This assumes that the filelist contains the list of all the snapshot files in the simulation.
+
+Note that WhereWolf is currently heavily I/O bound so there will be little difference in the timings for lots of MPI threads.
 
 ## Output
 
