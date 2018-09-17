@@ -42,7 +42,7 @@ else:
 
 #Extract all the header info from the first file
 GadFile = h5py.File(GadFilename,"r")
-TotNpart = np.sum(GadFile["Header"].attrs["NumPart_Total"],dtype=np.uint64)
+TotNpart = np.uint64(GadFile["Header"].attrs["NumPart_Total"][1])
 NumFiles = GadFile["Header"].attrs["NumFilesPerSnapshot"]
 
 #Lets see if the dataset which is used if the large amount of particles exists
@@ -65,7 +65,7 @@ if(TotNpart<=0):
        raise IOError("Cannot determine the number of particle from the header")
 
 #State how much memory is needed
-print("To load in and sort",TotNpart,"particle IDs, this task will need minimum ",(2 * TotNpart * 8 )/( 1000**3),"GB of memory")
+print("To load in and sort",TotNpart,"particle IDs, this task will need minimum of",(2 * TotNpart * 8 )/( 1000**3),"GB of memory")
 
 # Setup the values
 pid = np.zeros(TotNpart,dtype=np.uint64)

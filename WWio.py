@@ -309,7 +309,7 @@ def GetGadFileInfo(GadFileBaseName):
 	GadFile = h5py.File(GadFileName,"r")
 
 	
-	GadHeaderInfo["TotNpart"] = np.sum(GadFile["Header"].attrs["NumPart_Total"],dtype=np.uint64)
+	GadHeaderInfo["TotNpart"] = np.uint64(GadFile["Header"].attrs["NumPart_Total"][1])
 	GadHeaderInfo["BoxSize"] = GadFile["Header"].attrs["BoxSize"]
 	GadHeaderInfo["partMass"] = GadFile["Header"].attrs["MassTable"][1] # dark matter mass
 	GadHeaderInfo["h"] = GadFile["Header"].attrs["HubbleParam"]
