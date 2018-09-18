@@ -174,7 +174,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 
 		#Find the locations need to extact the indexes
 		LoadBool = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
-		LoadBool[allExtractParticleIDs-1]  =True
+		LoadBool[allExtractParticleIDs - GadHeaderInfo["DMPartIDOffset"] - 1]  =True
 
 		#Extract the index from the file
 		partLoc = WWPartSortedFile["pidSortedIndexes"][LoadBool]
@@ -219,7 +219,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 
 			offset = np.sum(allExtractParticleIDs<GadFileOffsets[i])
 
-			fileLoc = (allExtractParticleIDs[(allExtractParticleIDs>=GadFileOffsets[i]) & (allExtractParticleIDs<GadFileOffsets[i]+GadNumPartFile)] - GadFileOffsets[i] - 1).astype(np.int64)
+			fileLoc = (allExtractParticleIDs[(allExtractParticleIDs>=GadFileOffsets[i]) & (allExtractParticleIDs<GadFileOffsets[i]+GadNumPartFile)] - GadFileOffsets[i] - GadHeaderInfo["DMPartIDOffset"] - 1).astype(np.int64)
 
 			fileNpart = fileLoc.size
 
@@ -308,7 +308,7 @@ def GetGadFileInfo(GadFileBaseName):
 	#Open up the first file to see if and how many files the data is split across
 	GadFile = h5py.File(GadFileName,"r")
 
-	
+	GadHeaderInfo["DMPartIDOffset"] = np.uint64(GadFile["Header"].attrs["NumPart_Total"][0])
 	GadHeaderInfo["TotNpart"] = np.uint64(GadFile["Header"].attrs["NumPart_Total"][1])
 	GadHeaderInfo["BoxSize"] = GadFile["Header"].attrs["BoxSize"]
 	GadHeaderInfo["partMass"] = GadFile["Header"].attrs["MassTable"][1] # dark matter mass
