@@ -98,8 +98,8 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 	start = time.time()
 
 	if(trackIndx.size!=0):
-		npartExtract = np.sum(tracknpart,dtype=np.int64)
-		ExtractParticleIDs = np.zeros(npartExtract,dtype=np.uint64)
+		npartExtractTot = np.sum(tracknpart,dtype=np.int64)
+		ExtractParticleIDs = np.zeros(npartExtractTot,dtype=np.uint64)
 		PartOffsets = np.zeros(trackIndx.size,dtype=np.uint64)
 
 		partStart = np.uint64(0)
@@ -146,14 +146,14 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 			del newPartOffsets
 			del PartOffsets
 
-			npartExtract+=numNextpids
+			npartExtractTot+=numNextpids
 
 		else:
 			allExtractParticleIDs = ExtractParticleIDs
 			allPartOffsets = PartOffsets
 
 	else:
-		npartExtract = nextpids.size
+		npartExtractTot = nextpids.size
 		allExtractParticleIDs = nextpids
 		allPartOffsets = newPartOffsets
 
@@ -161,8 +161,9 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 	# # print("orig",allExtractParticleIDs)
 	origIDs=allExtractParticleIDs
 
-	#Make the ID's unique and sorted while returning the inverse
+	#Make the ID's unique and sorted while returning the inverse and set the number to be extracted
 	allExtractParticleIDs, inverseIndxes = np.unique(allExtractParticleIDs,return_inverse=True)
+	npartExtract=allExtractParticleIDs.size
 
 	# #Boolean to extract what indexes is needed from the WhereWolf part sorted Indexes file
 	# Sel = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
