@@ -174,7 +174,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 
 		#Find the locations need to extact the indexes
 		LoadBool = np.zeros(GadHeaderInfo["TotNpart"],dtype=bool)
-		LoadBool[allExtractParticleIDs - GadHeaderInfo["DMPartIDOffset"] - 1]  =True
+		LoadBool[allExtractParticleIDs - GadHeaderInfo["DMPartIDOffset"]]  =True
 
 		#Extract the index from the file
 		partLoc = WWPartSortedFile["pidSortedIndexes"][LoadBool]
@@ -190,16 +190,24 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 		LoadBool[partLoc] = True
 		LoadBool2[partLoc,:] = True
 
+		#Setup the arrays to load the data into
+		# newPartIDs = np.zeros(npartExtract,dtype=np.int64)
+		pos = np.zeros([npartExtract,3],dtype=np.float32)
+		vel = np.zeros([npartExtract,3],dtype=np.float32)
+
 		GadFile = h5py.File(opt.GadFileList[opt.Snapshot_offset + isnap]+".hdf5","r")
 
 		#Load in the desired particles
-		newPartIDs = GadFile["PartType1"]["ParticleIDs"][LoadBool]
-		pos = GadFile["PartType1"]["Coordinates"][LoadBool2]
-		vel = GadFile["PartType1"]["Velocities"][LoadBool2]
+		# newPartIDs = GadFile["PartType1"]["ParticleIDs"][LoadBool]
+		pos[:] = GadFile["PartType1"]["Coordinates"][LoadBool2].reshape(npartExtract,3)
+		vel[:] = GadFile["PartType1"]["Velocities"][LoadBool2].reshape(npartExtract,3)
 
 		GadFile.close()
 
-		print("Particles ids are",np.all(newPartIDs==origIDs))
+		# newPartIDs = newPartIDs[inverse][inverseIndxes]
+		pos = pos[inverse][inverseIndxes]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"]
+		vel = vel[inverse][inverseIndxes]*np.sqrt(GadHeaderInfo["Scalefactor"])
+		allExtractParticleIDs = allExtractParticleIDs[inverseIndxes]
 
 	else:
 		#Roll the fileno so each thread starts on a different file
@@ -287,7 +295,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 		vel = vel[inverse][inverseIndxes]*np.sqrt(GadHeaderInfo["Scalefactor"])
 		allExtractParticleIDs = allExtractParticleIDs[inverseIndxes]
 
-		# print(np.all(newPartIDs==origIDs))
+	# print(np.all(newPartIDs==origIDs))
 	
 	return allExtractParticleIDs,pos,vel,allPartOffsets
 
