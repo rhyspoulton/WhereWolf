@@ -335,7 +335,7 @@ def GetGadFileInfo(GadFileBaseName):
 			power = np.uint64(32 + sel)
 
 			#Add this number to the current TotNpart
-			TotNpart += np.power(base,power)
+			GadHeaderInfo["TotNpart"] += np.power(base,power)
 
   
 	GadFile.close()
@@ -1536,7 +1536,7 @@ def GetPartSortedIndexes(comm,Rank,GadFileBasename,GadHeaderInfo,snap,Outputdir)
 
 	return pidSortedIndexes,GadFileOffsets
 
-def CheckForWhereWolfRestartFile(Rank, opt, apptreeFields):
+def CheckForWhereWolfRestartFile(Rank, opt, apptreeFields,treeDtype):
 	"""
 	Function to Check for the existence of a WhereWolf restart file and read it
 	"""
@@ -1545,7 +1545,9 @@ def CheckForWhereWolfRestartFile(Rank, opt, apptreeFields):
 		print("Checking for restart file in",opt.outputdir)
 
 	#Set the default values if the restart file does not exist
-	newPartOffsets=None;nextPIDs=None;prevappendTreeData=None;prevNhalo=None
+	newPartOffsets=None;nextPIDs=None;prevNhalo=None
+	prevappendTreeData={key:np.array([],dtype=treeDtype[key]) for key in apptreeFields}
+
 	#Varibale to keep track of what halos to track in each snapshot
 	TrackData={"TrackDisp":[],"prevpos":[],"progenitor":[],"endDesc":[],"mbpSel":[],"boundSel":[],"Conc":[],"host":[],"CheckMerged":[],"TrackedNsnaps":[],"idel":[],"Rvir":[],"Mvir":[]}
 
@@ -1590,8 +1592,6 @@ def CheckForWhereWolfRestartFile(Rank, opt, apptreeFields):
 				TrackData[field] = np.asarray(WWRestartFile[field]).tolist()
 
 		del selOffsets
-
-		prevappendTreeData={key:[] for key in apptreeFields}
 
 		for field in apptreeFields:
 

@@ -4,8 +4,6 @@ from mpi4py import MPI
 def UpdateIDsoffsets(comm,Rank,size,snap,appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData,prevNhalo,HALOIDVAL=1000000000000):
 
 
-
-
 	#Have the root process gather all the offsets
 	if(Rank==0):
 		IDOffsets = np.zeros(size,dtype=np.uint64)
@@ -67,12 +65,13 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 			if(Rank==0):
 				istart = 0
 				iend = len(appendTreeData[field])
-				ALLnappend = [len(appendTreeData[field])]
+				ALLnappend = np.zeros(size,dtype=np.int64)
+				ALLnappend[0] = len(appendTreeData[field])
 
 				# Lets first tell the root-process how much data to expect from each process
 				for iprocess in range(1,size):
-					nappend = comm.recv(source=iprocess,tag=11)
-					ALLnappend.append(nappend)
+					nappend = comm.recv(source=iprocess,tag=10)
+					ALLnappend[iprocess]=nappend
 
 				# Find the total amount to send
 				NumSend = np.sum(ALLnappend)
@@ -91,23 +90,21 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 					tmp = np.empty(ALLnappend[iprocess],dtype=treeDtype[field])
 
 					# Recieve the data from the other processes
-					comm.Recv(tmp,source=iprocess,tag=21)
+					comm.Recv(tmp,source=iprocess,tag=20)
 
 					# Add it into the array
 					AllAppendTreeData[field][istart:iend] = tmp
-
-
-
-
 
 			else:
 				ALLnappend = None
 				AllAppendTreeData = None
 
-				# Send the data to the root process
+				# Send the amount of data to expect to the root process
 				nappend = len(appendTreeData[field])
-				comm.send(nappend,dest=0,tag=11)
-				comm.Send(appendTreeData[field],dest=0,tag=21)
+				comm.send(nappend,dest=0,tag=10)
+
+				# Send the data to the root process
+				comm.Send(appendTreeData[field],dest=0,tag=20)
 
 	else:
 		AllAppendTreeData = appendTreeData
@@ -124,12 +121,13 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 			if(Rank==0):
 				istart = 0
 				iend = len(prevupdateTreeData[field])
-				ALLnupdate = [len(prevupdateTreeData[field])]
+				ALLnupdate = np.zeros(size,dtype=np.int64)
+				ALLnupdate[0] = len(prevupdateTreeData[field])
 
 				# Lets first tell the root-process how much data to expect from each process
 				for iprocess in range(1,size):
-					nappend = comm.recv(source=iprocess,tag=11)
-					ALLnupdate.append(nappend)
+					nappend = comm.recv(source=iprocess,tag=30)
+					ALLnupdate[iprocess] = nappend
 
 				# Find the total amount to send
 				NumSend = np.sum(ALLnupdate)
@@ -148,22 +146,24 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 					tmp = np.empty(ALLnupdate[iprocess],dtype=np.uint64)
 
 					# Recieve the data from the other processes
-					comm.Recv(tmp,source=iprocess,tag=21)
+					comm.Recv(tmp,source=iprocess,tag=40)
 					# print("Recieving from",iprocess,tmp)
 
 					# Add it into the array
 					AllUpdateTreeData[field][istart:iend] = tmp
+					# if(len(tmp)>0): print(Rank,field,"has recived",tmp,"from",iprocess)
 
 
 			else:
 				ALLnupdate = None
 				AllUpdateTreeData = None
 
-				# Send the data to the root process
+				# Send the amount of data to expect to the root process
 				nappend = len(prevupdateTreeData[field])
-				comm.send(nappend,dest=0,tag=11)
-				# print(Rank,"Sending",prevupdateTreeData[field])
-				comm.Send(prevupdateTreeData[field],dest=0,tag=21)
+				comm.send(nappend,dest=0,tag=30)
+				
+				# Send the data to the root process
+				comm.Send(prevupdateTreeData[field],dest=0,tag=40)
 	else:
 		AllUpdateTreeData=prevupdateTreeData
 

@@ -36,7 +36,7 @@ WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart
 opt = WWOptions(tmpOpt)
 
 #Check if a WhereWolf restart file exists and read it in if it does
-newPartOffsets, nextPIDs, prevappendTreeData, prevNhalo, TrackData = WWio.CheckForWhereWolfRestartFile(Rank, opt, apptreeFields)
+newPartOffsets, nextPIDs, prevappendTreeData, prevNhalo, TrackData = WWio.CheckForWhereWolfRestartFile(Rank, opt, apptreeFields,treeDtype)
 
 RestartFlag = True if(len(TrackData["progenitor"])>0) else False
 
