@@ -10,6 +10,7 @@ from track import StartTrack,ContinueTrack
 import time
 from ui import WWOptions
 import argparse
+import os
 
 #Setup MPI
 comm = MPI.COMM_WORLD
@@ -42,8 +43,10 @@ RestartFlag = True if(len(TrackData["progenitor"])>0) else False
 
 #The root process tells each process what halos they are to do
 if Rank==0:
-	if(RestartFlag):
-		WWstatfile = open(opt.outputdir+"/WWrunstat.txt","r+")
+
+	#If starting at a nonzero snapshot and the runstat file exists then append the data to it
+	if((opt.Snapshot_offset>0) & (os.path.exists(opt.outputdir+"/WWrunstat.txt"))):
+		WWstatfile = open(opt.outputdir+"/WWrunstat.txt","a")
 	else:
 		WWstatfile = open(opt.outputdir+"/WWrunstat.txt","w")
 	ihalostarts, ihaloends = WWio.SetupParallelIO(opt,size)
@@ -299,9 +302,10 @@ for isnap in range(opt.numsnaps):
 	#Wait for all processes to finish this snapshot before moving onto the next one
 	comm.barrier()
 
+	#Update the WWstat file with the statistics from  this snapshot
 	if(Rank==0):
 		print(snap,"Done in",time.time()-start)
-
+		WWstatfile.write("%i " %snap)
 		for field in WWstatkeys:
 			WWstatfile.write("%i "%ALLWWstat[field])
 		WWstatfile.write("\n")
@@ -328,8 +332,8 @@ if(any(TrackFlag)):
 
 
 		#Create the file list in the output directory
-		if(RestartFlag):
-			treefilelist = open(opt.outputdir+"/treesnaplist.txt","r+")
+		if((opt.Snapshot_offset>0) & (os.path.exists(opt.outputdir+"/treesnaplist.txt"))):
+			treefilelist = open(opt.outputdir+"/treesnaplist.txt","a")
 		else:
 			treefilelist = open(opt.outputdir+"/treesnaplist.txt","w")
 		for isnap in range(opt.numsnaps):
@@ -341,8 +345,8 @@ if(any(TrackFlag)):
 				treefilelist.write(opt.TreeFileList[isnap+opt.Snapshot_offset] + "\n")
 		treefilelist.close()
 
-		if(RestartFlag):
-			snaplist = open(opt.outputdir+"/snaplist.txt","r+")
+		if((opt.Snapshot_offset>0) & (os.path.exists(opt.outputdir+"/snaplist.txt"))):
+			snaplist = open(opt.outputdir+"/snaplist.txt","a")
 		else:
 			snaplist = open(opt.outputdir+"/snaplist.txt","w")
 
