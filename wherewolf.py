@@ -63,6 +63,8 @@ if(Rank==0):
 #Boolean array to keep track if halos have been tracked in the snapshot
 TrackFlag = np.zeros(opt.numsnaps,dtype=bool)
 
+prevTotNappend = int(0)
+
 fsnap = opt.numsnaps-1
 
 for isnap in range(opt.numsnaps):
@@ -169,8 +171,19 @@ for isnap in range(opt.numsnaps):
 
 	#See if any of the processors has anything to track
 	if((NtotTrack==0) & (NtrackNextSnap==0)):
+
+		#Lets check and see if there is treedata to gather
+		if(prevTotNappend>0):
+			prevappendTreeData,prevupdateTreeData=MPIroutines.GatheroutputTreeData(comm,Rank,size,prevappendTreeData,None,treeDtype)
+
 		if(Rank==0):
 			print("All the processes have found nothing to track at this snapshot")
+
+			#If there was treedata to gather lets output it before moving onto the next snapshot
+			if(prevTotNappend>0): 
+				WWio.OutputWhereWolfTreeData(opt,snap-1,prevappendTreeData,None)
+				prevTotNappend = 0	
+				prevappendTreeData = {key:np.array([]) for key in apptreeFields}
 		WWio.CloseVELOCIraptorFiles(opt.VELFileList[snap],VELnumfiles,pfiles,upfiles,grpfiles)
 		continue
 
@@ -188,8 +201,7 @@ for isnap in range(opt.numsnaps):
 		print("Done loading particles in",time.time()-start)
 
 	startPartOffsets=None;newPartOffsets=None;nextPIDs=None;pidOffset=0
-		
-	
+
 	
 	#Track the halos one snapshot forwad if they need it, this is only done once there has been found that there are halos to be tracked in the next snapshot
 	if(NtrackNextSnap>0):
@@ -215,7 +227,6 @@ for isnap in range(opt.numsnaps):
 		for key in updatetreeFields:	prevupdateTreeData[key] = np.asarray(prevupdateTreeData[key],dtype=treeDtype[key])
 		for key in haloFields: appendHaloData[key] = np.asarray(appendHaloData[key])
 
-
 		prevNhalo=len(snapdata["ID"])
 
 		#If the number of threads is > 1 then need to update IDs and gather the TreeData onto the root thread
@@ -224,7 +235,6 @@ for isnap in range(opt.numsnaps):
 			appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData = MPIroutines.UpdateIDsoffsets(comm,Rank,size,snap,appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData,prevNhalo)
 
 			prevappendTreeData,prevupdateTreeData=MPIroutines.GatheroutputTreeData(comm,Rank,size,prevappendTreeData,prevupdateTreeData,treeDtype)
-
 
 		#Need to close the VELOCIraptor files before outputing the data
 		WWio.CloseVELOCIraptorFiles(opt.VELFileList[snap],VELnumfiles,pfiles,upfiles,grpfiles)
@@ -245,9 +255,10 @@ for isnap in range(opt.numsnaps):
 			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
 			# The file is for the previous snapshot
 			WWio.OutputWhereWolfTreeData(opt,snap-1,prevappendTreeData,prevupdateTreeData)
+			prevappendTreeData = {key:np.array([]) for key in apptreeFields}
 
 		prevappendTreeData=appendTreeData
-		
+		prevTotNappend = TotNappend
 
 		del appendHaloData
 		del prevupdateTreeData

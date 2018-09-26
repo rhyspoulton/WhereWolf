@@ -97,7 +97,7 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 
 			else:
 				ALLnappend = None
-				AllAppendTreeData = None
+				AllAppendTreeData[field]=np.array([])
 
 				# Send the amount of data to expect to the root process
 				nappend = len(appendTreeData[field])
@@ -156,7 +156,7 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 
 			else:
 				ALLnupdate = None
-				AllUpdateTreeData = None
+				AllUpdateTreeData[field] = np.array([])
 
 				# Send the amount of data to expect to the root process
 				nappend = len(prevupdateTreeData[field])
