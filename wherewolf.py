@@ -180,9 +180,12 @@ for isnap in range(opt.numsnaps):
 			print("All the processes have found nothing to track at this snapshot")
 
 			#If there was treedata to gather lets output it before moving onto the next snapshot
-			if(prevTotNappend>0): 
+			if(prevTotNappend>0):
+				# Set in the flag that a treefile has been created for a snapshot before
+				TrackFlag[isnap-1] = True
+
 				WWio.OutputWhereWolfTreeData(opt,snap-1,prevappendTreeData,None)
-				prevTotNappend = 0	
+				prevTotNappend = 0
 				prevappendTreeData = {key:np.array([]) for key in apptreeFields}
 		WWio.CloseVELOCIraptorFiles(opt.VELFileList[snap],VELnumfiles,pfiles,upfiles,grpfiles)
 		continue
