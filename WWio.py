@@ -529,7 +529,7 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 	if (os.path.isfile(filename)==False):
 		raise SystemExit("%s not found" %filename)
 
-	tree = { "NumDesc":[],"Descen": [], "Rank": [],"Merits": []}
+	tree = {}
 
 	with h5py.File(filename,"r") as hdffile:
 
