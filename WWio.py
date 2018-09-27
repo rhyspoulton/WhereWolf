@@ -529,26 +529,21 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 	if (os.path.isfile(filename)==False):
 		raise SystemExit("%s not found" %filename)
 
-	#Boolean to keep track if this snapshot is at the end of the simulation
-	endSim = True
-
-	tree = { "Descen": [], "Rank": [],"Merits": []}
+	tree = { "NumDesc":[],"Descen": [], "Rank": [],"Merits": []}
 
 	with h5py.File(filename,"r") as hdffile:
 
 		#See if the dataset exits
 		if("DescOffsets" in hdffile.keys()):
 
-			#If this dataset exist then this snapshot is not the end of the simulation
-			endSim = False
 
-			Numdescen = np.asarray(hdffile["NumDesc"])
+			tree["NumDesc"] = np.asarray(hdffile["NumDesc"])
 
 			#Get the indices for the main descedant
 			Offsets = np.asarray(hdffile["DescOffsets"])
 
 			#Lets remove the offsets where the halo has no descedant
-			descSel = np.where(Numdescen>0)[0]
+			descSel = np.where(tree["NumDesc"]>0)[0]
 			Offsets = Offsets[descSel]
 
 			#Create a Bool array to select the main descedants
@@ -556,9 +551,9 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 			mainDescSel[Offsets] = True
 
 			#Delcare arrays for descendats and thier ranks
-			tree["Descen"] = np.zeros(Numdescen.size,dtype=np.uint64)
-			tree["Rank"] = -1*np.ones(Numdescen.size,dtype=np.int32)
-			tree["Merits"] = np.zeros(Numdescen.size,dtype=np.float32)
+			tree["Descen"] = np.zeros(tree["NumDesc"].size,dtype=np.uint64)
+			tree["Rank"] = -1*np.ones(tree["NumDesc"].size,dtype=np.int32)
+			tree["Merits"] = np.zeros(tree["NumDesc"].size,dtype=np.float32)
 
 
 			# Read in the data splitting it up as reading it in
@@ -567,10 +562,9 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 			tree["Merits"][descSel] =  hdffile["Merits"][mainDescSel]
 
 			del Offsets
-			del Numdescen
 
 
-	return endSim, tree
+	return tree
 
 def SetupParallelIO(opt,nprocess):
 

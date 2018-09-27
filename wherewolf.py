@@ -108,15 +108,14 @@ for isnap in range(opt.numsnaps):
 	if(Rank==0):
 		#Read the VELOCIraptor property file and the treefrog tree
 		snapdata, totnumhalos, atime  = WWio.ReadPropertyFile(opt.VELFileList[snap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
-		endSim, treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[snap])
+		treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[snap])
 	else:
 		snapdata = None; totnumhalos= None; atime=None
-		endSim = None; treedata =None
+		treedata =None
 
 	snapdata = comm.bcast(snapdata,root=0)
 	totnumhalos = comm.bcast(totnumhalos,root=0)
 	atime = comm.bcast(atime,root=0)
-	endSim = comm.bcast(endSim,root=0)
 	treedata = comm.bcast(treedata,root=0)
 
 	if(Rank==0):
@@ -126,13 +125,13 @@ for isnap in range(opt.numsnaps):
 	filenumhalos,VELnumfiles,pfiles,upfiles,grpfiles = WWio.OpenVELOCIraptorFiles(opt.VELFileList[snap])
 
 
-	if((not endSim) & (numhalos>0)):
+	if(("Descen" in treedata.keys()) & (numhalos>0)):
 
 		# npart = WWio.ReadVELOIraptorCatalogueNpartSplit(VELFilename,ihalostart[Rank][snapindex],ihaloend[Rank][snapindex],VELfilenumhalos)
 		# tree = WWio.ReadVELOCIraptorTreeDescendant(TreeFilename,ihalostart[Rank][snapindex],ihaloend[Rank][snapindex])
 
 		# Select where the halo has merged with more than 50 particles
-		TrackDispSel = (treedata["Rank"][ihalostart:ihaloend]>0)  
+		TrackDispSel = (treedata["Rank"][ihalostart:ihaloend]>0)  | (treedata["NumDesc"][ihalostart:ihaloend]==0)
 
 		#Find where there are gaps in the tree
 		TrackFillSel = (treedata["Rank"][ihalostart:ihaloend]==0) & (((treedata["Descen"][ihalostart:ihaloend]/opt.Temporal_haloidval).astype(int) - snap)>1)
@@ -273,7 +272,7 @@ for isnap in range(opt.numsnaps):
 
 
 	#Try to find halos to track if not at the last snapshot
-	if((not endSim) & (ntrack>0)):
+	if(("Descen" in treedata.keys()) & (ntrack>0)):
 		startPartOffsets,startPIDs  = StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,allPartOffsets[nTracked:],GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat)
 
 	#Update the nextPIDS and the newPartOffsets
