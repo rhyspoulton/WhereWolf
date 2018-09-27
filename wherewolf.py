@@ -68,8 +68,6 @@ TrackFlag = np.zeros(opt.numsnaps,dtype=bool)
 
 prevTotNappend = int(0)
 
-fsnap = opt.numsnaps-1
-
 for isnap in range(opt.numsnaps):
 
 	snap = isnap + opt.Snapshot_offset
@@ -225,7 +223,7 @@ for isnap in range(opt.numsnaps):
 
 		#If thre are halos to track then lers track them into the next snapshot
 		if(nTracked>0):
-			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,fsnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat)
+			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat)
 			pidOffset=len(contPIDs)
 
 		#Now done Tracking lets turn the output data into arrays for easy indexing
