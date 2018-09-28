@@ -49,7 +49,8 @@ if Rank==0:
 		WWstatfile = open(opt.outputdir+"/WWrunstat.txt","a")
 	else:
 		WWstatfile = open(opt.outputdir+"/WWrunstat.txt","w")
-	ihalostarts, ihaloends = WWio.SetupParallelIO(opt,size)
+		WWstatfile.write("# "+" ".join(WWstatkeys) + "\n")
+	ihalostarts, ihaloends = WWio.SetupParallelIO(comm,opt,size)
 else:
 	ihalostarts=None; ihaloends=None
 
@@ -58,10 +59,6 @@ ihalostarts = comm.bcast(ihalostarts,root=0)
 ihaloends = comm.bcast(ihaloends,root=0)
 
 totstart = time.time()
-
-#Setup the stat file
-if(Rank==0):
-	WWstatfile.write("# "+" ".join(WWstatkeys) + "\n")
 
 #Boolean array to keep track if halos have been tracked in the snapshot
 TrackFlag = np.zeros(opt.numsnaps,dtype=bool)
@@ -95,7 +92,7 @@ for isnap in range(opt.numsnaps):
 
 	#Extract the header info from the gadget snapshot
 	if Rank==0:
-		GadHeaderInfo = WWio.GetGadFileInfo(opt.GadFileList[snap])
+		GadHeaderInfo = WWio.GetGadFileInfo(comm,opt.GadFileList[snap])
 	else:
 		GadHeaderInfo=None
 
@@ -108,7 +105,7 @@ for isnap in range(opt.numsnaps):
 	if(Rank==0):
 		#Read the VELOCIraptor property file and the treefrog tree
 		snapdata, totnumhalos, atime  = WWio.ReadPropertyFile(opt.VELFileList[snap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
-		treeOpt,treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[snap])
+		treeOpt,treedata = WWio.ReadVELOCIraptorTreeDescendant(comm,opt.TreeFileList[snap])
 	else:
 		snapdata = None; totnumhalos= None; atime=None
 		treeOpt=None;treedata =None
@@ -128,6 +125,15 @@ for isnap in range(opt.numsnaps):
 
 	if(("Descen" in treedata.keys()) & (numhalos>0)):
 
+		#Check if the  VELOCIraptor and TreeFrog catalogues sizes match up
+		if(snapdata["ID"].size!=treedata["Descen"].size):
+			if(Rank==0):
+				print("The number of halos in the VELOCIraptor catalogue does not match the number in the TreeFrog tree, please check they are the correct files.")
+				print("Terminating")
+				comm.Abort()
+			else:
+				comm.barrier()
+
 		# npart = WWio.ReadVELOIraptorCatalogueNpartSplit(VELFilename,ihalostart[Rank][snapindex],ihaloend[Rank][snapindex],VELfilenumhalos)
 		# tree = WWio.ReadVELOCIraptorTreeDescendant(TreeFilename,ihalostart[Rank][snapindex],ihaloend[Rank][snapindex])
 
@@ -140,13 +146,7 @@ for isnap in range(opt.numsnaps):
 		#See if the descendant has a merit below the hard merit limit
 		TrackMerit = (treedata["Merits"][ihalostart:ihaloend]<=0.2) & (treedata["Rank"][ihalostart:ihaloend]>-1)
 
-		#Find where the rank is greater than zero
-		try:
-			trackIndx = np.where((TrackDispSel | TrackFillSel | TrackMerit) & (snapdata["npart"][ihalostart:ihaloend]>50))[0]
-		except ValueError:
-			print("The number of halos in the VELOCIraptor catalogue does not match the number in the TreeFrog tree, please check they are the correct files.")
-			print("Terminating")
-			comm.Abort()
+		trackIndx = np.where((TrackDispSel | TrackFillSel | TrackMerit) & (snapdata["npart"][ihalostart:ihaloend]>50))[0]
 
 		trackMergeDesc = treedata["Descen"][ihalostart:ihaloend][trackIndx]
 
@@ -203,7 +203,7 @@ for isnap in range(opt.numsnaps):
 		
 
 	if((ntrack>0) | (ntrackNextSnap>0)):
-		allpid,allpartpos,allpartvel,allPartOffsets = WWio.GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnumfiles,filenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextPIDs)
+		allpid,allpartpos,allpartvel,allPartOffsets = WWio.GetParticleData(comm,Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnumfiles,filenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextPIDs)
 
 
 	if(Rank==0):
