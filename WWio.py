@@ -530,8 +530,19 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 		raise SystemExit("%s not found" %filename)
 
 	tree = {}
+	#Store the options this tree was built with
+	treeOpt={}
 
 	with h5py.File(filename,"r") as hdffile:
+
+		#Extract the tree construction options
+		treeOpt["Core_fraction"]=hdffile.attrs["Core_fraction"][...]
+		treeOpt["Core_min_number_of_particles"]=hdffile.attrs["Core_min_number_of_particles"][...]
+		if("Merit_type" in hdffile.attrs.keys()):
+			treeOpt["Merit_type"]=hdffile.attrs["Merit_type"][...]
+		else:
+			print("Merit type not found in the TreeFrog header setting it as MERITRankWeightedBoth(6)")
+			treeOpt["Merit_type"]=6
 
 		#See if the dataset exits
 		if("DescOffsets" in hdffile.keys()):
@@ -564,7 +575,7 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 			del Offsets
 
 
-	return tree
+	return treeOpt,tree
 
 def SetupParallelIO(opt,nprocess):
 

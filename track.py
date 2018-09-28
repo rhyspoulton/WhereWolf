@@ -224,7 +224,7 @@ def CalculateMerit(imerittype, partList1, partList2):
 
 
 
-def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat):
+def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt):
 
 	#Find the physical boxsize
 	boxsize = GadHeaderInfo["BoxSize"]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"]
@@ -366,8 +366,8 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 			offset = 0
 
 			#If doing core matching finc out how many particles to match in the core of the WW halo
-			if(opt.iCore):
-				WWCoreNpart = np.max([np.rint(opt.CoreFrac*npart),opt.MinNumpartCore])
+			if((treeOpt["Core_fraction"]<1.0) & (treeOpt["Core_fraction"]>0.0)):
+				WWCoreNpart = np.max([np.rint(treeOpt["Core_fraction"]*npart),treeOpt["Core_min_number_of_particles"]])
 				WWCoreNpart = np.min([npart,WWCoreNpart]).astype(int)
 
 			#Loop over all the matches
@@ -422,10 +422,10 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 					break
 
 
-				if(opt.iCore):
+				if((treeOpt["Core_fraction"]<1.0) & (treeOpt["Core_fraction"]>0.0)):
 					######### Then do core to core if selected  ########
 					matchNpart = len(matched_partIDs)
-					MatchCoreNpart = np.max([np.rint(opt.CoreFrac*matchNpart),opt.MinNumpartCore])
+					MatchCoreNpart = np.max([np.rint(treeOpt["Core_fraction"]*matchNpart),treeOpt["Core_fraction"]])
 					MatchCoreNpart = np.min([matchNpart,MatchCoreNpart]).astype(int)
 
 					#Calculate the merit

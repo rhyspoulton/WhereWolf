@@ -20,9 +20,6 @@ class WWOptions(object):
 		self.WWPIDSortedIndexList = []
 
 		self.Num_Halos_search = 100
-		self.iCore = 1
-		self.CoreFrac = 0.4
-		self.MinNumpartCore = 20
 		self.NumSnapsWithinCoreMerge = 3
 
 		self.Temporal_haloidval = 1000000000000
@@ -61,15 +58,6 @@ class WWOptions(object):
 
 				elif(line[0]=="Num_Halos_search"):
 					self.Num_Halos_search = int(line[1])
-
-				elif(line[0]=="iCore"):
-					self.iCore = int(line[1])
-
-				elif(line[0]=="CoreFrac"):
-					self.CoreFrac = float(line[1])
-
-				elif(line[0]=="MinNumpartCore"):
-					self.MinNumpartCore = int(line[1])
 
 				elif(line[0]=="NumSnapsWithinCoreMerge"):
 					self.NumSnapsWithinCoreMerge = int(line[1])

@@ -108,15 +108,16 @@ for isnap in range(opt.numsnaps):
 	if(Rank==0):
 		#Read the VELOCIraptor property file and the treefrog tree
 		snapdata, totnumhalos, atime  = WWio.ReadPropertyFile(opt.VELFileList[snap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
-		treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[snap])
+		treeOpt,treedata = WWio.ReadVELOCIraptorTreeDescendant(opt.TreeFileList[snap])
 	else:
 		snapdata = None; totnumhalos= None; atime=None
-		treedata =None
+		treeOpt=None;treedata =None
 
 	snapdata = comm.bcast(snapdata,root=0)
 	totnumhalos = comm.bcast(totnumhalos,root=0)
 	atime = comm.bcast(atime,root=0)
 	treedata = comm.bcast(treedata,root=0)
+	treeOpt = comm.bcast(treeOpt,root=0)
 
 	if(Rank==0):
 		print("Done loading halo and tree data in",time.time()-start,"now finding halos to track")
@@ -140,7 +141,12 @@ for isnap in range(opt.numsnaps):
 		TrackMerit = (treedata["Merits"][ihalostart:ihaloend]<=0.2) & (treedata["Rank"][ihalostart:ihaloend]>-1)
 
 		#Find where the rank is greater than zero
-		trackIndx = np.where((TrackDispSel | TrackFillSel | TrackMerit) & (snapdata["npart"][ihalostart:ihaloend]>50))[0]
+		try:
+			trackIndx = np.where((TrackDispSel | TrackFillSel | TrackMerit) & (snapdata["npart"][ihalostart:ihaloend]>50))[0]
+		except ValueError:
+			print("The number of halos in the VELOCIraptor catalogue does not match the number in the TreeFrog tree, please check they are the correct files.")
+			print("Terminating")
+			comm.Abort()
 
 		trackMergeDesc = treedata["Descen"][ihalostart:ihaloend][trackIndx]
 
@@ -187,6 +193,7 @@ for isnap in range(opt.numsnaps):
 				WWio.OutputWhereWolfTreeData(opt,snap-1,prevappendTreeData,None)
 				prevTotNappend = 0
 				prevappendTreeData = {key:np.array([]) for key in apptreeFields}
+
 		WWio.CloseVELOCIraptorFiles(opt.VELFileList[snap],VELnumfiles,pfiles,upfiles,grpfiles)
 		continue
 
@@ -222,7 +229,7 @@ for isnap in range(opt.numsnaps):
 
 		#If thre are halos to track then lers track them into the next snapshot
 		if(nTracked>0):
-			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat)
+			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt)
 			pidOffset=len(contPIDs)
 
 		#Now done Tracking lets turn the output data into arrays for easy indexing
@@ -248,7 +255,7 @@ for isnap in range(opt.numsnaps):
 		TotNappend = comm.allreduce(Nappend,MPI.SUM)
 
 		#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-		WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+		# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True
