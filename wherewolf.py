@@ -34,7 +34,7 @@ WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart
 
 
 #Read the options from the config file
-opt = WWOptions(tmpOpt)
+opt = WWOptions(comm,Rank,tmpOpt)
 
 #Check if a WhereWolf restart file exists and read it in if it does
 newPartOffsets, nextPIDs, prevappendTreeData, prevNhalo, TrackData = WWio.CheckForWhereWolfRestartFile(Rank, opt, apptreeFields,treeDtype)
