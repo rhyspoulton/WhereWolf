@@ -178,22 +178,27 @@ def MergeHalo(opt,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,pfiles,u
 
 
 #Calculate the merit between two haloes that have been matched
-def CalculateMerit(imerittype, partList1, partList2):
+def CalculateMerit(treeOpt, partList1, partList2):
 
 	sel=np.in1d(partList1,partList2)
 	nsh=np.sum(sel,dtype=np.float64)
 	n1 = len(partList1)
 	n2 = len(partList2)
 
-	if(imerittype==1):
+	#Lets check if this connection is insignificant to the poisson noise
+	#If so return a merit of zero so it will not be matched up
+	if((nsh<treeOpt["Merit_limit"]*np.sqrt(n1)) & (nsh<treeOpt["Merit_limit"]*np.sqrt(n2))):
+		return 0.0;
+
+	if(treeOpt["Merit_type"]==1):
 		merit=nsh*nsh/n1/n2
-	elif (imerittype==2):
+	elif (treeOpt["Merit_type"]==2):
 		merit=nsh/n1
-	elif (imerittype==3):
+	elif (treeOpt["Merit_type"]==3):
 		merit=nsh
-	elif (imerittype==4):
+	elif (treeOpt["Merit_type"]==4):
 		merit=nsh/n1*(1.0+nsh/n2)
-	elif (imerittype==5):
+	elif (treeOpt["Merit_type"]==5):
 		#this ranking is based on Poole+ 2017 where we rank most bound particles more
 		#assumes input particle list is meaningful (either boundness ranked or radially for example
 		ranksum= np.sum(1.0/(np.where(sel)[0]+1.0))
@@ -204,7 +209,7 @@ def CalculateMerit(imerittype, partList1, partList2):
 		#being lost in bigger object and being deemed main progenitor
 		merit*=nsh*nsh/n1/n2
 		merit=np.sqrt(merit)
-	elif (imerittype==6):
+	elif (treeOpt["Merit_type"]==6):
 		#like above but ranking both ways, that is merit is combination of rankings in a and b
 		ranksum=0
 		ranksum= np.sum(1.0/(np.where(sel)[0]+1.0))
@@ -219,7 +224,7 @@ def CalculateMerit(imerittype, partList1, partList2):
 		merit*=ranksum/norm
 		merit*=nsh*nsh/n1/n2
 		merit=np.sqrt(merit)
-	return merit;
+	return merit
 
 
 
@@ -381,6 +386,8 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 					MatchedDesc = treedata["Descen"][indx]
 					#Lets also extract the merit for the matched halo and lets see if this has a better match
 					MatchedMerit = treedata["Merits"][indx]
+				else:
+					break
 
 				#Add the halo to the check merged dict if it does not exist to see how long it has been phased mixed
 				if(MatchedID not in TrackData["CheckMerged"][i].keys()):
@@ -398,7 +405,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 
 				######## First match all particles to all particles  ########
 
-				merit = CalculateMerit(imerittype,boundIDs,matched_partIDs)
+				merit = CalculateMerit(treeOpt,boundIDs,matched_partIDs)
 
 				#Lets see if the merit is better than the one that the halo already has
 				if(merit>MatchedMerit):
@@ -429,7 +436,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 					MatchCoreNpart = np.min([matchNpart,MatchCoreNpart]).astype(int)
 
 					#Calculate the merit
-					merit = CalculateMerit(imerittype,boundIDs[:WWCoreNpart],matched_partIDs[:MatchCoreNpart])
+					merit = CalculateMerit(treeOpt,boundIDs[:WWCoreNpart],matched_partIDs[:MatchCoreNpart])
 
 					#Lets see if the merit is better than the one that the halo already has
 					if(merit>MatchedMerit):

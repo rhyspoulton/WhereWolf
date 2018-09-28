@@ -255,7 +255,7 @@ for isnap in range(opt.numsnaps):
 		TotNappend = comm.allreduce(Nappend,MPI.SUM)
 
 		#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-		# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+		WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True

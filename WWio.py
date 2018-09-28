@@ -538,6 +538,7 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 		#Extract the tree construction options
 		treeOpt["Core_fraction"]=hdffile.attrs["Core_fraction"][...]
 		treeOpt["Core_min_number_of_particles"]=hdffile.attrs["Core_min_number_of_particles"][...]
+		treeOpt["Merit_limit"]=hdffile.attrs["Merit_limit"][...]
 		if("Merit_type" in hdffile.attrs.keys()):
 			treeOpt["Merit_type"]=hdffile.attrs["Merit_type"][...]
 		else:
