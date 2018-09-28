@@ -91,7 +91,7 @@ def ReadGadgetPosVel(Rank,size,GadFilename,ExtractParticleIDs,Gadnumfiles,Gadfil
 
 	return pos,vel
 
-def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnumfiles,VELfilenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextpids):
+def GetParticleData(comm,Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnumfiles,VELfilenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextpids):
 
 	if(opt.iverbose):
 		if(Rank==0): print("Loading in the halo particles from the gadget file(s)")
@@ -170,6 +170,13 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 	# Sel[allExtractParticleIDs-1] = True
 
 	if(GadHeaderInfo["NumFiles"]==1):
+
+		#First check the file exists
+		if((Rank==0) & (os.path.isfile(opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.hdf")==False)):
+			print("The partSortedIndex file",opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.hdf","not found")
+			print("Terminating")
+			comm.Abort()
+
 		#Open up the file
 		WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.hdf","r")
 
@@ -196,6 +203,12 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 		pos = np.zeros([npartExtract,3],dtype=np.float32)
 		vel = np.zeros([npartExtract,3],dtype=np.float32)
 
+		#Lets check the gadget file exists
+		if((Rank==0) & (os.path.isfile(opt.GadFileList[opt.Snapshot_offset + isnap]+".hdf5")==False)):
+			print("The Gadget snapshot file",opt.GadFileList[opt.Snapshot_offset + isnap]+".hdf5","not found")
+			print("Terminating")
+			comm.Abort()
+
 		GadFile = h5py.File(opt.GadFileList[opt.Snapshot_offset + isnap]+".hdf5","r")
 
 		#Load in the desired particles
@@ -221,6 +234,11 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 		partLoc = np.zeros(allExtractParticleIDs.size,dtype=np.int64)
 
 		for i in ifiles:
+			#First check the file exists
+			if((Rank==0) & (os.path.isfile(opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.%i.hdf" %i)==False)):
+				print("The partSortedIndex file",opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.%i.hdf" %i,"not found")
+				print("Terminating")
+				comm.Abort()
 
 			WWPartSortedFile = h5py.File(opt.WWPIDSortedIndexList[opt.Snapshot_offset + isnap]+".WWpidsortindex.%i.hdf" %i,"r")
 			GadFileOffsets[i] = WWPartSortedFile.attrs["partOffset"][...]
@@ -279,6 +297,12 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 				# LoadBool[fileLoc] = True
 				LoadBool2[fileLoc,:] = True
 
+				#Lets check the gadget file exists
+				if((Rank==0) & (os.path.isfile(opt.GadFileList[opt.Snapshot_offset + isnap]+".%i.hdf5" %i)==False)):
+					print("The Gadget snapshot file",opt.GadFileList[opt.Snapshot_offset + isnap]+".%i.hdf5" %i,"not found")
+					print("Terminating")
+					comm.Abort()
+
 				GadFile = h5py.File(opt.GadFileList[opt.Snapshot_offset + isnap]+".%i.hdf5" %i,"r")
 
 				#Extract the data from the file
@@ -301,7 +325,7 @@ def GetParticleData(Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnu
 	return allExtractParticleIDs,pos,vel,allPartOffsets
 
 
-def GetGadFileInfo(GadFileBaseName):
+def GetGadFileInfo(comm,GadFileBaseName):
 
 
 
@@ -312,7 +336,8 @@ def GetGadFileInfo(GadFileBaseName):
 	if(os.path.isfile(GadFileName)==False):
 		GadFileName = GadFileBaseName + ".0.hdf5"
 		if(os.path.isfile(GadFileName)== False):
-			raise IOError("Could not find file",GadFileName)
+			print("Could not find file",GadFileName)
+			comm.Abort()
 
 	#Open up the first file to see if and how many files the data is split across
 	GadFile = h5py.File(GadFileName,"r")
@@ -399,13 +424,17 @@ def GetGadFileMinMax(comm,Rank,size,GadFilename,GadHeaderInfo):
 
 
 
-def ReadVELOIraptorNumhalos(opt):
+def ReadVELOIraptorNumhalos(comm,opt):
 
 	numhalos = np.zeros(opt.numsnaps,dtype=np.uint64)
 
 	for i,snap in enumerate(range(opt.Snapshot_offset,opt.Snapshot_offset+opt.numsnaps)):
 
 		filename= opt.VELFileList[snap] + ".properties.0"
+
+		if(os.path.isfile(filename)==False):
+			print("VELOCIraptor file",filename,"not found")
+			comm.Abort()
 
 		hdffile = h5py.File(filename,"r")
 
@@ -520,14 +549,15 @@ def ReadVELOCIraptorTreeDescendantSplit(basefilename,ihalostart,ihaloend,iverbos
 	return tree
 
 
-def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
+def ReadVELOCIraptorTreeDescendant(comm,basefilename,iverbose=0):
 
 
 	if(iverbose): print("Reading VELOCIraptor tree file",basefilename)
 	filename=basefilename +".tree"
 
 	if (os.path.isfile(filename)==False):
-		raise SystemExit("%s not found" %filename)
+		print("TreeFrog file %s not found" %filename)
+		comm.Abort()
 
 	tree = {}
 	#Store the options this tree was built with
@@ -578,7 +608,7 @@ def ReadVELOCIraptorTreeDescendant(basefilename,iverbose=0):
 
 	return treeOpt,tree
 
-def SetupParallelIO(opt,nprocess):
+def SetupParallelIO(comm,opt,nprocess):
 
 	print("Setting up for ParallelIO")
 
@@ -586,7 +616,7 @@ def SetupParallelIO(opt,nprocess):
 	ihalostart = np.zeros([nprocess,opt.numsnaps],dtype=np.int64)
 	ihaloend = np.zeros([nprocess,opt.numsnaps],dtype=np.int64)
 
-	numhalos = ReadVELOIraptorNumhalos(opt)
+	numhalos = ReadVELOIraptorNumhalos(comm,opt)
 
 	for snap in range(opt.numsnaps):
 
