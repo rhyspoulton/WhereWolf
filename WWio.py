@@ -1272,7 +1272,7 @@ def Reset_Files(VELFilename):
 			os.remove(WWfilename)
 
 
-def ReadPropertyFile(basefilename,GadHeaderInfo,ibinary=0,iseparatesubfiles=0,iverbose=0, desiredfields=[]):
+def ReadPropertyFile(basefilename,GadHeaderInfo,ibinary=0,iseparatesubfiles=0, desiredfields=[]):
 	"""
 	VELOCIraptor/STF files in various formats
 	for example ascii format contains
@@ -1292,7 +1292,6 @@ def ReadPropertyFile(basefilename,GadHeaderInfo,ibinary=0,iseparatesubfiles=0,iv
 
 	start = time.clock()
 	inompi=True
-	if (iverbose): print("reading properties file",basefilename)
 	filename=basefilename+".properties"
 	#load header
 	if (os.path.isfile(filename)==True):
@@ -1400,9 +1399,15 @@ def ReadPropertyFile(basefilename,GadHeaderInfo,ibinary=0,iseparatesubfiles=0,iv
 		fieldtype=[halofile[fieldname].dtype for fieldname in fieldnames]
 		#if the desiredfields argument is passed only these fieds are loaded
 		if (len(desiredfields)>0):
-			if (iverbose):print("Loading subset of all fields in property file ", len(desiredfields), " instead of ", len(fieldnames))
 			fieldnames=desiredfields
 			fieldtype=[halofile[fieldname].dtype for fieldname in fieldnames]
+
+		#Load in the Header info so the units are known
+		unitinfo = {}
+		unitinfo["Mass_unit"] = halofile.attrs["Mass_unit_to_solarmass"][...]
+		unitinfo["Dist_unit"] = halofile.attrs["Length_unit_to_kpc"][...]
+		unitinfo["Vel_unit"] = halofile.attrs["Velocity_to_kms"][...]
+
 		halofile.close()
 
 	#allocate memory that will store the halo dictionary
@@ -1411,7 +1416,6 @@ def ReadPropertyFile(basefilename,GadHeaderInfo,ibinary=0,iseparatesubfiles=0,iv
 	for ifile in range(numfiles):
 		if (inompi==True): filename=basefilename+".properties"
 		else: filename=basefilename+".properties"+"."+str(ifile)
-		if (iverbose) : print("reading ",filename)
 		if (ibinary==0):
 			halofile = open(filename, 'r')
 			halofile.readline()
@@ -1441,7 +1445,6 @@ def ReadPropertyFile(basefilename,GadHeaderInfo,ibinary=0,iseparatesubfiles=0,iv
 		for ifile in range(numfiles):
 			if (inompi==True): filename=basefilename+".sublevels"+".properties"
 			else: filename=basefilename+".sublevels"+".properties"+"."+str(ifile)
-			if (iverbose) : print("reading ",filename)
 			if (ibinary==0):
 				halofile = open(filename, 'r')
 				halofile.readline()
@@ -1481,9 +1484,7 @@ def ReadPropertyFile(basefilename,GadHeaderInfo,ibinary=0,iseparatesubfiles=0,iv
 	wdata=np.where(catalog["Zc"]>=boxval)
 	catalog["Zc"][wdata]-=boxval
 
-
-	if (iverbose): print("done reading properties file ",time.clock()-start)
-	return catalog,numtothalos,atime
+	return catalog,numtothalos,atime,unitinfo
 
 
 def GetGadgetHeader(GadFileName):
@@ -1581,7 +1582,7 @@ def CheckForWhereWolfRestartFile(Rank, opt, apptreeFields,treeDtype):
 		print("Checking for restart file in",opt.outputdir)
 
 	#Set the default values if the restart file does not exist
-	newPartOffsets=None;nextPIDs=None;prevNhalo=None
+	newPartOffsets=None;nextPIDs=None;prevNhalo=0
 	prevappendTreeData={key:np.array([],dtype=treeDtype[key]) for key in apptreeFields}
 
 	#Varibale to keep track of what halos to track in each snapshot
