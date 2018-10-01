@@ -58,7 +58,7 @@ def StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allp
 		vr=np.sqrt((partvel[:,0]-halovel[0])**2 + (partvel[:,1]-halovel[1])**2 + (partvel[:,2]-halovel[2])**2)
 
 		#Calculate the circular velocities for the particles in the halo
-		Vesc_calc=cf.cosNFWvesc(r, Mass_200crit, conc,z = GadHeaderInfo["Redshift"],f=1,Munit=unitinfo["Mass_unit"])
+		Vesc_calc=cf.cosNFWvesc(r, Mass_200crit, conc,z = GadHeaderInfo["Redshift"],f=1,Munit=unitinfo["Mass_unit"],Dist="Ang")
 
 		#Iterate on posistion until less than 100 particles or tracking less than 10% of the halos paricles
 		j=0
@@ -250,8 +250,8 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 	boxsize = GadHeaderInfo["BoxSize"]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"] * unitinfo["Dist_unit"]/1000.0 # Mpc
 
 	#Find rho crit and use that to find R200crit and M200crit
-	rhocrit = cf.cosgrowRhoCrit(z = GadHeaderInfo["Redshift"]) /unitinfo["Mass_unit"]
-	rhomean = cf.cosgrowRhoMean(z = GadHeaderInfo["Redshift"]) /unitinfo["Mass_unit"]
+	rhocrit = cf.cosgrowRhoCrit(z = GadHeaderInfo["Redshift"])
+	rhomean = cf.cosgrowRhoMean(z = GadHeaderInfo["Redshift"])
 
 	keepPIDS = np.zeros(len(allpid),dtype = bool)
 	newPartOffset=0
@@ -304,7 +304,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 		r[r==0] = 1e-5 
 
 		#Find the R_200crit and Mass_200crit from rhocrit
-		R_200crit=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhocrit,200,GadHeaderInfo["partMass"]*unitinfo["Mass_unit"]/1e10)
+		R_200crit=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhocrit/unitinfo["Mass_unit"],200,GadHeaderInfo["partMass"]*unitinfo["Mass_unit"]/1e10)
 		Mass_200crit=cf.coshaloRvirToMvir(R_200crit,rhocrit,200,Munit=unitinfo["Mass_unit"])
 
 		#Calculate the escape velocity from the potential
@@ -516,8 +516,8 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 		ID=(snap+opt.Snapshot_offset)*opt.Temporal_haloidval +(len(snapdata["ID"]) + len(appendHaloData["ID"])) +1
 
 		# Calculate properties of the halo
-		R_200mean=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhomean,200,GadHeaderInfo["partMass"]*unitinfo["Mass_unit"]/1e10)
-		Mass_200mean=cf.coshaloRvirToMvir(R_200mean,rhomean,200)
+		R_200mean=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhomean/unitinfo["Mass_unit"],200,GadHeaderInfo["partMass"]*unitinfo["Mass_unit"]/1e10)
+		Mass_200mean=cf.coshaloRvirToMvir(R_200mean,rhomean,200,Munit=unitinfo["Mass_unit"])
 		Mass_tot = npart * GadHeaderInfo["partMass"]*unitinfo["Mass_unit"]/1e10
 		sigV = np.mean(np.sqrt((vr-np.mean(vr))**2))
 		Vmax = vr[vr.argmax()]
