@@ -104,15 +104,16 @@ for isnap in range(opt.numsnaps):
 
 	if(Rank==0):
 		#Read the VELOCIraptor property file and the treefrog tree
-		snapdata, totnumhalos, atime  = WWio.ReadPropertyFile(opt.VELFileList[snap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
+		snapdata, totnumhalos, atime, unitinfo  = WWio.ReadPropertyFile(opt.VELFileList[snap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
 		treeOpt,treedata = WWio.ReadVELOCIraptorTreeDescendant(comm,opt.TreeFileList[snap])
 	else:
-		snapdata = None; totnumhalos= None; atime=None
+		snapdata = None; totnumhalos= None; atime=None; unitinfo=None
 		treeOpt=None;treedata =None
 
 	snapdata = comm.bcast(snapdata,root=0)
 	totnumhalos = comm.bcast(totnumhalos,root=0)
 	atime = comm.bcast(atime,root=0)
+	unitinfo = comm.bcast(unitinfo,root=0)
 	treedata = comm.bcast(treedata,root=0)
 	treeOpt = comm.bcast(treeOpt,root=0)
 
@@ -229,7 +230,7 @@ for isnap in range(opt.numsnaps):
 
 		#If thre are halos to track then lers track them into the next snapshot
 		if(nTracked>0):
-			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt)
+			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo)
 			pidOffset=len(contPIDs)
 
 		#Now done Tracking lets turn the output data into arrays for easy indexing
@@ -280,7 +281,7 @@ for isnap in range(opt.numsnaps):
 
 	#Try to find halos to track if not at the last snapshot
 	if(("Descen" in treedata.keys()) & (ntrack>0)):
-		startPartOffsets,startPIDs  = StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,allPartOffsets[nTracked:],GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat)
+		startPartOffsets,startPIDs  = StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,allPartOffsets[nTracked:],GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat,unitinfo)
 
 	#Update the nextPIDS and the newPartOffsets
 	if((newPartOffsets is not None) & (startPartOffsets is not None)):
