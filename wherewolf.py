@@ -144,10 +144,7 @@ for isnap in range(opt.numsnaps):
 		#Find where there are gaps in the tree
 		TrackFillSel = (treedata["Rank"][ihalostart:ihaloend]==0) & (((treedata["Descen"][ihalostart:ihaloend]/opt.Temporal_haloidval).astype(int) - snap)>1)
 
-		#See if the descendant has a merit below the hard merit limit
-		TrackMerit = (treedata["Merits"][ihalostart:ihaloend]<=0.2) & (treedata["Rank"][ihalostart:ihaloend]>-1)
-
-		trackIndx = np.where((TrackDispSel | TrackFillSel | TrackMerit) & (snapdata["npart"][ihalostart:ihaloend]>50))[0]
+		trackIndx = np.where((TrackDispSel | TrackFillSel) & (snapdata["npart"][ihalostart:ihaloend]>50))[0]
 
 		trackMergeDesc = treedata["Descen"][ihalostart:ihaloend][trackIndx]
 
