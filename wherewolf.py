@@ -27,10 +27,10 @@ tmpOpt = parser.parse_args()
 
 #All the data to add for the wherewolf files
 haloFields=["ID","Mass_200crit","Mass_200mean","Mass_tot","R_200crit","R_200mean","Xc","Yc","Zc","VXc","VYc","VZc","sigV","Vmax","Rmax","hostHaloID","npart","Num_of_files","Group_Size","Particle_IDs","Particle_IDs_unbound","Parent_halo_ID"]
-updatetreeFields=["ID","Descendants"]
-apptreeFields=["ID","NumDesc","Ranks","Descendants"]
-treeDtype={"ID":"uint64","NumDesc":"int32","Ranks":"int32","Descendants":"uint64"}
-WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart","Merged","notMerged","Match","MatchStart","MatchCore","MatchStartCore","Mixed","ConnectPartLimit","Connect","contNSnap"]
+updatetreeFields=["ID","Descendants","Merits"]
+apptreeFields=["ID","NumDesc","Ranks","Descendants","Merits"]
+treeDtype={"ID":"uint64","NumDesc":"int32","Ranks":"int32","Descendants":"uint64","Merits":"float32"}
+WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart","Merged","MergedMBP","notMerged","Match","MatchStart","MatchCore","MatchStartCore","Mixed","ConnectPartLimit","Connect","ConnectMBP","contNSnap"]
 
 
 #Read the options from the config file
@@ -123,7 +123,6 @@ for isnap in range(opt.numsnaps):
 	#Open up the VELOCIraptor files to read the halo particle info
 	filenumhalos,VELnumfiles,pfiles,upfiles,grpfiles = WWio.OpenVELOCIraptorFiles(opt.VELFileList[snap])
 
-
 	if(("Descen" in treedata.keys()) & (numhalos>0)):
 
 		#Check if the  VELOCIraptor and TreeFrog catalogues sizes match up
@@ -148,7 +147,7 @@ for isnap in range(opt.numsnaps):
 
 		trackMergeDesc = treedata["Descen"][ihalostart:ihaloend][trackIndx]
 
-		trackDispFlag = treedata["Rank"][ihalostart:ihaloend][trackIndx]>0
+		trackDispFlag = (treedata["Rank"][ihalostart:ihaloend][trackIndx]>0) | (treedata["NumDesc"][ihalostart:ihaloend][trackIndx]==0)
 
 		tracknpart= snapdata["npart"][ihalostart:ihaloend][trackIndx]
 
@@ -253,7 +252,7 @@ for isnap in range(opt.numsnaps):
 		TotNappend = comm.allreduce(Nappend,MPI.SUM)
 
 		#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-		WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+		# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True
