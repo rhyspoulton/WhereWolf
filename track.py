@@ -117,10 +117,12 @@ def StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allp
 def MergeHalo(opt,treeOpt,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,pfiles,upfiles,grpfiles,prevappendTreeData,pos_tree,WWstat):
 
 	#Lets find the num halos search of halos closest to this halo
-	_,indx_list = pos_tree.query(meanpos,opt.Num_Halos_search)
+	if(opt.Num_Halos_search>snapdata["ID"].size):
+		_,indx_list = pos_tree.query(meanpos,snapdata["ID"].size)
+	else:
+		_,indx_list = pos_tree.query(meanpos,opt.Num_Halos_search)
 
 	meritList = np.zeros(opt.Num_Halos_search,dtype=float)
-
 	match=False
 	#Lets find if the halo lies within any of the rvir of the halos
 	for i,indx in enumerate(indx_list):
@@ -157,14 +159,16 @@ def MergeHalo(opt,treeOpt,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,
 	#Only need to update the descendant if a match is found
 	if np.sum(meritList)!=0:
 
+
 		#The one which has the highest merit is the best match
-		indx = indx_list[np.argmax(meritList)] 
+		maxIndx = np.argmax(meritList)
+		indx = indx_list[maxIndx]
 
 		#Lets have the previous halo point to the matched halo
 		prevappendTreeData["Descendants"][progenIndx] = snapdata["ID"][indx]
 		prevappendTreeData["Ranks"][progenIndx] = 1
 		prevappendTreeData["NumDesc"][progenIndx] = 1 
-		prevappendTreeData["Merits"][progenIndx] = merit
+		prevappendTreeData["Merits"][progenIndx] = meritList[maxIndx]
 
 		WWstat["Merged"]+=1
 
