@@ -811,10 +811,15 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 
 		#Now also update the Ranks
 		TFRanks = np.asarray(treefile["Ranks"])
-		dsetSize = TFRanks.size
 
 		# Update the Ranks so the connections with the WW halos are Rank 0
 		TFRanks[descIndexes] = 0
+
+		#Then the updated merits
+		TFMerits = np.asarray(treefile["Merits"])
+
+		#Update the merits to the ones calculated
+		TFMerits[descIndexes] = updateTreeData["Merits"]
 
 		#Done with the updateTreeData
 		del updateTreeData
@@ -866,6 +871,20 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 			#Now we are done with the TFdata they can be deleted
 			del allRanks
 			del TFRanks
+
+			#Allocate a array to store all the TFdata
+			allMerits = np.empty(dsetSize + Nappend,dtype=TFMerits.dtype)
+
+			#Lets insert them into the array of all TFdata
+			allMerits[:dsetSize] = TFMerits
+			allMerits[dsetSize:] = appendTreeData["Merits"][sel]
+
+			WWtreefile.create_dataset("Merits",data=allMerits)
+
+
+			#Now we are done with the TFdata they can be deleted
+			del allMerits
+			del TFMerits
 
 			#Check the number to append
 			Nappend = appendTreeData["NumDesc"].size
@@ -948,11 +967,13 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 		WWtreefile.create_dataset("Descendants",data=TFDescen)
 		WWtreefile.create_dataset("DescOffsets",data=TFDescOffsets)
 		WWtreefile.create_dataset("Ranks",data=TFRanks)
+		WWtreefile.create_dataset("Merits",data=TFMerits)
 
 		#Done with the datasets
 		del TFDescen
 		del TFDescOffsets
 		del TFRanks
+		del TFMerits
 
 
 		#Output the rest if the tree data to the WW file
@@ -964,10 +985,10 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 			#Output to the WW tree file
 			WWtreefile.create_dataset(field,data=TFdata)
 
-		## For debuging
-		debugdata = np.asarray(treefile["ID"])
+		# ## For debuging
+		# debugdata = np.asarray(treefile["ID"])
 
-		WWtreefile.create_dataset("endDesc",data=debugdata)
+		# WWtreefile.create_dataset("endDesc",data=debugdata)
 
 
 	#Close the files

@@ -30,7 +30,7 @@ haloFields=["ID","Mass_200crit","Mass_200mean","Mass_tot","R_200crit","R_200mean
 updatetreeFields=["ID","Descendants","Merits"]
 apptreeFields=["ID","NumDesc","Ranks","Descendants","Merits"]
 treeDtype={"ID":"uint64","NumDesc":"int32","Ranks":"int32","Descendants":"uint64","Merits":"float32"}
-WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart","Merged","MergedMBP","notMerged","Match","MatchStart","MatchCore","MatchStartCore","Mixed","ConnectPartLimit","Connect","ConnectMBP","contNSnap"]
+WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart","Merged","MergedMBP","notMerged","Mixed","ConnectPartLimit","Connect","ConnectMBP","contNSnap"]
 
 
 #Read the options from the config file
@@ -252,7 +252,7 @@ for isnap in range(opt.numsnaps):
 		TotNappend = comm.allreduce(Nappend,MPI.SUM)
 
 		#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-		# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+		WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True
