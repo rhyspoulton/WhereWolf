@@ -830,6 +830,7 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 		#Now load in the descendant data
 		TFDescen = np.asarray(treefile["Descendants"])
 		TFRanks = np.asarray(treefile["Ranks"])
+		TFMerits = np.asarray(treefile["Merits"])
 		dsetSize = TFRanks.size
 
 
