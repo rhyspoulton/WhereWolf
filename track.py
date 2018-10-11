@@ -200,7 +200,7 @@ def MergeHalo(opt,treeOpt,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,
 
 
 #Calculate the merit between two haloes that have been matched
-def CalculateMerit(treeOpt, partList1, partList2):
+def CalculateMerit(treeOpt, partList1, partList2, icore=True):
 
 	sel=np.in1d(partList1,partList2)
 	nsh=np.sum(sel,dtype=np.float64)
@@ -246,6 +246,32 @@ def CalculateMerit(treeOpt, partList1, partList2):
 		merit*=ranksum/norm
 		merit*=nsh*nsh/n1/n2
 		merit=np.sqrt(merit)
+
+	######### Then do core to core if the core fractoion is between 0 to 1  ########
+	if((treeOpt["Core_fraction"]<1.0) & (treeOpt["Core_fraction"]>0.0) & icore):
+
+		#Find the number of core particles to use
+		CoreNpart1 = np.max([np.rint(treeOpt["Core_fraction"]*n1),treeOpt["Core_min_number_of_particles"]])
+		CoreNpart1 = np.min([n1,CoreNpart1]).astype(int)
+
+		#First do a baised core to all
+		coremerit = CalculateMerit(treeOpt,partList1[:CoreNpart1],partList2,False)
+		if(coremerit>merit):
+			merit=coremerit
+
+		CoreNpart2 = np.max([np.rint(treeOpt["Core_fraction"]*n2),treeOpt["Core_min_number_of_particles"]])
+		CoreNpart2 = np.min([n2,CoreNpart2]).astype(int)
+
+		#Calculate the core merit using just a unbaised Nsh^2/N1/N2 merit
+		sel=np.in1d(partList1[:CoreNpart1],partList2[:CoreNpart2])
+		nsh = np.sum(sel,dtype=np.float64)
+		coremerit = nsh*nsh/CoreNpart1/CoreNpart2
+
+		#Now lets check if this merit is any better, if so then update the merit
+		if(coremerit>merit):
+			merit=coremerit
+
+
 	return merit
 
 
@@ -645,6 +671,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 			#to the ones which are currently bound to the halo
 			merit = CalculateMerit(treeOpt,partIDs[TrackData["boundSel"][i]],partIDs)
 			prevupdateTreeData["Merits"].append(merit)
+
 		else:
 
 			progenIndx = int(progen%opt.Temporal_haloidval-1)
