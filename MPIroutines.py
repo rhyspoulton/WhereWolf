@@ -133,7 +133,7 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 				NumSend = np.sum(ALLnupdate)
 
 				# Allocate an array to store all the tree data
-				AllUpdateTreeData[field] = np.empty(NumSend,dtype=np.uint64)
+				AllUpdateTreeData[field] = np.empty(NumSend,dtype=treeDtype[field])
 
 				# Add the data from the root process
 				AllUpdateTreeData[field][istart:iend] = prevupdateTreeData[field]
@@ -143,7 +143,7 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 					iend+=ALLnupdate[iprocess]
 
 					#Recieve buffere
-					tmp = np.empty(ALLnupdate[iprocess],dtype=np.uint64)
+					tmp = np.empty(ALLnupdate[iprocess],dtype=treeDtype[field])
 
 					# Recieve the data from the other processes
 					comm.Recv(tmp,source=iprocess,tag=40)
