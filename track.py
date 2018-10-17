@@ -9,7 +9,7 @@ from scipy.spatial import cKDTree
 
 G = 43.0211349
 
-def StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,partOffsets,GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat,unitinfo):
+def StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,partOffsets,GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat,unitinfo):
 
 	#Find the physical boxsize
 	boxsize = GadHeaderInfo["BoxSize"]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"] * unitinfo["Dist_unit"]/1000.0 # Mpc
@@ -33,8 +33,17 @@ def StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allp
 
 		#Find the id and index of the host
 		if(snapdata["hostHaloID"][Indx]>-1):
+
 			Hostindx=int(snapdata["hostHaloID"][Indx]%opt.Temporal_haloidval-1)
-			hostHead=treedata["Descen"][Hostindx]
+			tmpHostHead=treedata["Descen"][Hostindx]
+
+			#Lets check this host halo is in thr next snapshot
+			hostHeadSnap = int(tmpHostHead/opt.Temporal_haloidval)
+			if(hostHeadSnap==snap+1):
+				hostHead=tmpHostHead
+			else:
+				hostHead=-1
+
 		else:
 			hostHead=-1
 
@@ -604,6 +613,8 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 		appendHaloData["Offset_unbound"].append(0)
 		appendHaloData["Num_of_groups"]+=1
 
+		#Lets store the previous host of this halo
+		prevhost = TrackData["host"][i]
 
 		#Lets see if the halo has a host if not then we can try and set one
 		if((TrackData["host"][i]>0) & (int(TrackData["host"][i]/opt.Temporal_haloidval)==snap+opt.Snapshot_offset)):
@@ -615,8 +626,11 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 					HostIndx=int(TrackData["host"][i]%opt.Temporal_haloidval -1)
 					hostHeadID=treedata["Descen"][HostIndx]
 
+					#Lets check this host halo is in thr next snapshot
+					hostHeadSnap = int(hostHeadID/opt.Temporal_haloidval)
+
 					#Update the host in the trackdata
-					if(TrackData["host"][i]!=hostHeadID): 
+					if((TrackData["host"][i]!=hostHeadID) & (hostHeadSnap==snap+1)): 
 						TrackData["host"][i]=hostHeadID
 					else:
 						TrackData["host"][i]=-1
@@ -640,7 +654,18 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 						#If gravitationall bound then set is as the host and subtract the mass from it of the WW halo
 						appendHaloData["hostHaloID"].append(snapdata["ID"][indx])
 						appendHaloData["Parent_halo_ID"].append(indx+1)
-						TrackData["host"][i] = snapdata["ID"][indx]
+
+						#Lets uppdate the host to point to this halos head if its in the next snapshot
+						if("Descen" in treedata.keys()):
+							HostIndx=int(snapdata["ID"][indx]%opt.Temporal_haloidval -1)
+							hostHeadID=treedata["Descen"][HostIndx]
+
+							#Lets check this host halo is in thr next snapshot
+							hostHeadSnap = int(hostHeadID/opt.Temporal_haloidval)
+							if(hostHeadSnap==snap+1):
+								TrackData["host"][i]=hostHeadID
+							else:
+								TrackData["host"][i] = -1
 
 						break
 
@@ -716,7 +741,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 
 			#Find the halo it has merged with if it has been lost
 			if(TrackData["TrackDisp"][i]):
-				 MergeHalo(opt,treeOpt,meanpos,partIDs[TrackData["boundSel"][i]],-1,snapdata,TrackData["host"][i],filenumhalos,pfiles,upfiles,grpfiles,appendTreeData,pos_tree,WWstat)
+				 MergeHalo(opt,treeOpt,meanpos,partIDs[TrackData["boundSel"][i]],-1,snapdata,prevhost,filenumhalos,pfiles,upfiles,grpfiles,appendTreeData,pos_tree,WWstat)
 				 WWstat["MergedMBP"]+=1
 
 			#If not to be tracked until dispersed then connect it up with its endDesc

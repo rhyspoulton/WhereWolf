@@ -252,7 +252,7 @@ for isnap in range(opt.numsnaps):
 		TotNappend = comm.allreduce(Nappend,MPI.SUM)
 
 		#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-		# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+		WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True
@@ -277,7 +277,7 @@ for isnap in range(opt.numsnaps):
 
 	#Try to find halos to track if not at the last snapshot
 	if(("Descen" in treedata.keys()) & (ntrack>0)):
-		startPartOffsets,startPIDs  = StartTrack(opt,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,allPartOffsets[nTracked:],GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat,unitinfo)
+		startPartOffsets,startPIDs  = StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,allPartOffsets[nTracked:],GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat,unitinfo)
 
 	#Update the nextPIDS and the newPartOffsets
 	if((newPartOffsets is not None) & (startPartOffsets is not None)):
