@@ -104,7 +104,10 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 				comm.send(nappend,dest=0,tag=10)
 
 				# Send the data to the root process
-				comm.Send(appendTreeData[field],dest=0,tag=20)
+				if(field=="Merits"):
+					comm.Send([appendTreeData[field],"f"],dest=0,tag=20)
+				else:
+					comm.Send(appendTreeData[field],dest=0,tag=20)
 
 	else:
 		AllAppendTreeData = appendTreeData
@@ -163,8 +166,11 @@ def GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDt
 				comm.send(nappend,dest=0,tag=30)
 				
 				# Send the data to the root process
-				comm.Send(prevupdateTreeData[field],dest=0,tag=40)
-	else:
+				if(field=="Merits"):
+					comm.Send([prevupdateTreeData[field],"f"],dest=0,tag=40)
+				else:
+					comm.Send(prevupdateTreeData[field],dest=0,tag=40)
+	else:	
 		AllUpdateTreeData=prevupdateTreeData
 
 
