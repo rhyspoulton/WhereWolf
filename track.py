@@ -518,7 +518,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 
 
 		#Lets see if the halo has reached the last snapshot it should be tracked for
-		if((int(TrackData["endDesc"][i]/opt.Temporal_haloidval)==snap+opt.Snapshot_offset+1) & (TrackData["TrackDisp"][i]==False)):
+		if((int(TrackData["endDesc"][i]/opt.Temporal_haloidval)==snap+opt.Snapshot_offset+1) & (TrackData["TrackDisp"][i]==False) & ("Descen" in treedata.keys())):
 
 			appendTreeData["Descendants"][-1] = TrackData["endDesc"][i]
 			appendTreeData["NumDesc"][-1] = 1
@@ -534,7 +534,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 
 
 		# Check if the halo still has a bound center of at least 5 particles
-		if(np.sum(TrackData["mbpSel"][i])<=5):
+		if((np.sum(TrackData["mbpSel"][i])<=5) & ("Descen" in treedata.keys())):
 		
 				
 			progenIndx = -1
