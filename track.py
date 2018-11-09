@@ -124,7 +124,7 @@ def StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos
 	return newPartOffsets,startpids
 
 
-def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,snapdata,treedata,snapmerits,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo):
+def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,snapdata,treedata,progenBool,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo):
 
 	#Find the physical boxsize
 	boxsize = GadHeaderInfo["BoxSize"]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"] * unitinfo["Dist_unit"]/1000.0 # Mpc
@@ -268,6 +268,10 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 
 			#Lets check if it has any matches
 			if(indx_list.size):
+
+				#Store all the WhereWolf merit, Matched merits and MatchedID's for 
+				meritList = []
+				MatchedIDList = []
 				start=time.time()
 
 				matched=False
@@ -307,29 +311,12 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 					matched_partIDs = WWio.GetHaloParticles(grpfiles[fileno],pfiles[fileno],upfiles[fileno],int(indx-offset))
 
 					######## First match all particles to all particles  ########
-
 					merit = CalculateMerit(treeOpt,boundIDs,matched_partIDs)
-					MatchedMerit = snapmerits[indx]
 
-					#The connection to the VELOCIraptor halo is made if the halo has no connection and the WhereWolf halo's merit is above the merit limit or if the
-					#VELOCIraptor halo already has a connection then their merits are compared and if WhereWolf merit is 20% greater then the connection is switched
-					if(((MatchedMerit==0) & (merit>treeOpt["Merit_limit_for_next_step"])) | ((MatchedMerit>0) & (((merit-MatchedMerit)/MatchedMerit)>0.2))):
-						
-						progen=TrackData["progenitor"][i]
-
-						#Only update if this halo has been tracked for at least 1 snapshot
-						if(TrackData["TrackedNsnaps"][i]>0):
-							progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
-							progenIndx = progenIndx - prevNhalo
-							prevappendTreeData["Descendants"][progenIndx]= MatchedID
-							prevappendTreeData["NumDesc"][progenIndx] = 1
-							prevappendTreeData["Merits"][progenIndx] = merit
-							WWstat["Match"]+=1
-
-						matched = True
-						break
-
-
+					#Only add it if the halo has no progenitor
+					if(progenBool[indx]==False):
+						meritList.append(merit)
+						MatchedIDList.append(MatchedID)
 
 					#Find the ratio of how far away the halo is to see if it is within 0.1Rvir
 					ratioradius2 = ((meanpos[0]-snapdata["Xc"][indx])**2 + (meanpos[1]-snapdata["Yc"][indx])**2 + (meanpos[2]-snapdata["Zc"][indx])**2)/(snapdata["R_200crit"][indx]*snapdata["R_200crit"][indx])
@@ -354,12 +341,8 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 							while((indx+1)>(offset + filenumhalos[fileno])):
 								offset+=filenumhalos[fileno]
 								fileno+=1
-
-							#Get the matched halo particles and properties
-							matched_partIDs = WWio.GetHaloParticles(grpfiles[fileno],pfiles[fileno],upfiles[fileno],int(indx-offset))
-
 							#Calculate the merit between the halos
-							prevappendTreeData["Merits"][progenIndx] = CalculateMerit(treeOpt,boundIDs,matched_partIDs)
+							prevappendTreeData["Merits"][progenIndx] = meritList[j]
 
 							WWstat["Mixed"]+=1
 
@@ -374,6 +357,60 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 					else:
 						#If it goes outside of 0.1Rvir then delete the entry
 						TrackData["CheckMerged"][i].pop(MatchedID)
+
+				#The connection to the VELOCIraptor halo is made if the halo has no connection and the WhereWolf halo's merit is above the merit limit
+
+				#First lets find which ones have no connection and are above the merit limit
+				meritList=np.asarray(meritList,dtype=np.float32)
+				Sel = meritList>treeOpt["Merit_limit_for_next_step"]
+
+				#Find if there are any halos which satisfy the above conditions
+				if(np.sum(Sel)):
+
+					#Use a masked array to find the argmax
+					maxindx = np.argmax(meritList)
+
+					progen=TrackData["progenitor"][i]
+
+					#Only update if this halo has been tracked for at least 1 snapshot
+					if(TrackData["TrackedNsnaps"][i]>0):
+						progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
+						progenIndx = progenIndx - prevNhalo
+						prevappendTreeData["Descendants"][progenIndx]= MatchedIDList[maxindx]
+						prevappendTreeData["NumDesc"][progenIndx] = 1
+						prevappendTreeData["Merits"][progenIndx] = meritList[maxindx]
+						WWstat["Matched"]+=1
+
+					matched = True
+
+				# #Remove the indexes where the MatchedMeritList==0 so where halos don't have any connections
+				# meritList = meritList[MatchedMeritList>0]
+				# MatchedIDList = MatchedIDList[MatchedMeritList>0]
+				# MatchedMeritList = MatchedMeritList[MatchedMeritList>0]
+
+				# #Since the halo has a connection(s) lets compare them and see if WhereWolf's connection is 50% better and if the existing merit is poor <0.1
+				# Sel = (((meritList-MatchedMeritList)/MatchedMeritList)>0.5) & (MatchedMeritList<0.1)
+
+				# #Find if there are any halos which satisfy the above conditions
+				# if(np.sum(Sel)):
+
+				# 	#Use a masked array to find the argmax
+				# 	maxindx = meritList.argmax()
+
+				# 	progen=TrackData["progenitor"][i]
+
+				# 	print(meritList[maxindx],MatchedMeritList[maxindx],npart,MatchedIDList[maxindx])
+
+				# 	#Only update if this halo has been tracked for at least 1 snapshot
+				# 	if(TrackData["TrackedNsnaps"][i]>0):
+				# 		progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
+				# 		progenIndx = progenIndx - prevNhalo
+				# 		prevappendTreeData["Descendants"][progenIndx]= MatchedIDList[maxindx]
+				# 		prevappendTreeData["NumDesc"][progenIndx] = 1
+				# 		prevappendTreeData["Merits"][progenIndx] = meritList[maxindx]
+				# 		WWstat["Switched"]+=1
+
+				# 	matched = True
 
 				if(matched):
 					TrackData["idel"][i] = 1

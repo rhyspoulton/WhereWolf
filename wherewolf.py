@@ -7,7 +7,7 @@ from mpi4py import MPI
 import WWio
 import MPIroutines
 from track import StartTrack,ContinueTrack
-from utils import ExtractHaloMerits
+from utils import CheckHaloHasProgen
 import time
 from ui import WWOptions
 import argparse
@@ -31,7 +31,7 @@ haloFields=["ID","Mass_200crit","Mass_200mean","Mass_tot","R_200crit","R_200mean
 updatetreeFields=["ID","Descendants","Merits"]
 apptreeFields=["ID","NumDesc","Ranks","Descendants","Merits"]
 treeDtype={"ID":"uint64","NumDesc":"int32","Ranks":"int32","Descendants":"uint64","Merits":"float32"}
-WWstatkeys = ["TotStartTracked","StartTrackDisp","StartFill","NoStart","Start","TotContTrack","PartLimitStart","Merged","MergedMBP","Match","notMerged","Mixed","ConnectPartLimit","Connect","ConnectMBP","contNSnap"]
+WWstatkeys = ["TotStartTracked","StartTrackDisp","StartFill","NoStart","Start","TotContTrack","PartLimitStart","Merged","MergedMBP","Matched","notMerged","Mixed","ConnectPartLimit","Connect","ConnectMBP","contNSnap"]
 
 
 #Read the options from the config file
@@ -60,8 +60,8 @@ ihalostarts = comm.bcast(ihalostarts,root=0)
 ihaloends = comm.bcast(ihaloends,root=0)
 allnumhalos = comm.bcast(allnumhalos,root=0)
 
-#List of arrays to store the merits
-allmerits = [[] for i in range(opt.numsnaps)]
+#List of arrays to mark if the halo has a progenitor
+progenBool = [[] for i in range(opt.numsnaps)]
 
 totstart = time.time()
 
@@ -86,7 +86,7 @@ for isnap in range(opt.numsnaps):
 		continue
 
 
-	start = time.time()
+	starttot = time.time()
 
 	ihalostart = ihalostarts[Rank][isnap]
 	ihaloend = ihaloends[Rank][isnap]
@@ -129,12 +129,12 @@ for isnap in range(opt.numsnaps):
 		istep=min(treeOpt["Number_of_steps"],opt.numsnaps-1 - isnap)
 
 		#Extract merits from the TreeFrog tree
-		updateindexes,merits=ExtractHaloMerits(opt,treeOpt,isnap,istep,treedata,numhalos,allnumhalos,ihalostart,ihaloend,allmerits)
-		MPIroutines.CommunicateMerits(comm,Rank,size,isnap,istep,updateindexes,merits,allmerits)
+		updateindexes=CheckHaloHasProgen(opt,treeOpt,isnap,istep,treedata,numhalos,allnumhalos,ihalostart,ihaloend,progenBool)
+		MPIroutines.CommunicateProgenBool(comm,Rank,size,isnap,istep,updateindexes,progenBool)
 
 
 	if(Rank==0):
-		print("Done loading halo and tree data in",time.time()-start,"now finding halos to track")
+		print("Done loading halo and tree data in",time.time()-starttot,"now finding halos to track")
 
 	#Open up the VELOCIraptor files to read the halo particle info
 	filenumhalos,VELnumfiles,pfiles,upfiles,grpfiles = WWio.OpenVELOCIraptorFiles(opt.VELFileList[snap])
@@ -241,7 +241,7 @@ for isnap in range(opt.numsnaps):
 
 		#If thre are halos to track then lers track them into the next snapshot
 		if(nTracked>0):
-			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,allmerits[isnap],filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo)
+			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,progenBool[isnap],filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo)
 			pidOffset=len(contPIDs)
 
 		#Now done Tracking lets turn the output data into arrays for easy indexing
@@ -283,7 +283,7 @@ for isnap in range(opt.numsnaps):
 		prevTotNappend = TotNappend
 
 		#Done with the merits at this snapshot so the array can be deallocated
-		allmerits[isnap] = []
+		progenBool[isnap] = []
 
 		del appendHaloData
 		del prevupdateTreeData
@@ -323,7 +323,7 @@ for isnap in range(opt.numsnaps):
 
 	#Update the WWstat file with the statistics from  this snapshot
 	if(Rank==0):
-		print(snap,"Done in",time.time()-start)
+		print(snap,"Done in",time.time()-starttot)
 		WWstatfile.write("%i " %snap)
 		for field in WWstatkeys:
 			WWstatfile.write("%i "%ALLWWstat[field])
