@@ -4,7 +4,7 @@ import mmap
 import cosFuncs as cf
 import WWio
 from scipy.spatial import cKDTree
-
+from utils import CalculateMerit,MergeHalo
 
 
 G = 43.0211349
@@ -123,170 +123,8 @@ def StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos
 
 	return newPartOffsets,startpids
 
-def MergeHalo(opt,treeOpt,meanpos,partIDs,progenIndx,snapdata,host,filenumhalos,pfiles,upfiles,grpfiles,prevappendTreeData,pos_tree,WWstat):
 
-	#Lets find the num halos search of halos closest to this halo
-	if(opt.Num_Halos_search>snapdata["ID"].size):
-		_,indx_list = pos_tree.query(meanpos,snapdata["ID"].size)
-	else:
-		_,indx_list = pos_tree.query(meanpos,opt.Num_Halos_search)
-
-	meritList = np.zeros(opt.Num_Halos_search,dtype=float)
-	match=False
-	#Lets find if the halo lies within any of the rvir of the halos
-	for i,indx in enumerate(indx_list):
-
-		fileno = 0
-		offset = 0
-		while((indx+1)>(offset + filenumhalos[fileno])):
-			offset+=filenumhalos[fileno]
-			fileno+=1
-
-		#Get the matched halo particles and properties
-		matched_partIDs = WWio.GetHaloParticles(grpfiles[fileno],pfiles[fileno],upfiles[fileno],int(indx-offset))
-
-		#Do a merit calculation to see if they do overlap
-		meritList[i]=CalculateMerit(treeOpt,partIDs,matched_partIDs)
-
-	# HostIndx = int(host%opt.Temporal_haloidval-1)
-	# fileno = 0
-	# offset = 0
-	# while((HostIndx+1)>(offset + filenumhalos[fileno])):
-	# 	offset+=filenumhalos[fileno]
-	# 	fileno+=1
-
-	# host_partIDs = WWio.GetHaloParticles(grpfiles[fileno],pfiles[fileno],upfiles[fileno],int(HostIndx-offset))
-	# matchNpart = host_partIDs.size
-	# npart = partIDs.size
-
-	# #Find the amount of particles that match in the two halos
-	# sel=np.in1d(host_partIDs,partIDs)
-	# nsh=np.sum(sel,dtype=np.float64)
-
-	# hostMerit=(nsh*nsh)/(matchNpart*npart)
-
-	#Only need to update the descendant if a match is found
-	if np.sum(meritList)!=0:
-
-
-		#The one which has the highest merit is the best match
-		maxIndx = np.argmax(meritList)
-		indx = indx_list[maxIndx]
-
-		#Lets have the previous halo point to the matched halo
-		prevappendTreeData["Descendants"][progenIndx] = snapdata["ID"][indx]
-		prevappendTreeData["Ranks"][progenIndx] = 1
-		prevappendTreeData["NumDesc"][progenIndx] = 1 
-		prevappendTreeData["Merits"][progenIndx] = meritList[maxIndx]
-
-		WWstat["Merged"]+=1
-
-	elif(host!=-1):
-
-		HostIndx = int(host%opt.Temporal_haloidval-1)
-		fileno = 0
-		offset = 0
-		while((HostIndx+1)>(offset + filenumhalos[fileno])):
-			offset+=filenumhalos[fileno]
-			fileno+=1
-
-		host_partIDs = WWio.GetHaloParticles(grpfiles[fileno],pfiles[fileno],upfiles[fileno],int(HostIndx-offset))
-
-		merit = CalculateMerit(treeOpt,partIDs,host_partIDs)
-
-		#If it does have a host lets just merge it with it
-		prevappendTreeData["Descendants"][progenIndx] = host
-		prevappendTreeData["Ranks"][progenIndx] = 1
-		prevappendTreeData["NumDesc"][progenIndx] = 1 
-		prevappendTreeData["Merits"][progenIndx] = merit
-
-		WWstat["Merged"]+=1
-
-		#Else if all merits are 0 then there are no matches found so keep NumDesc==0
-
-	else:
-		WWstat["notMerged"]+=1
-
-
-#Calculate the merit between two haloes that have been matched
-def CalculateMerit(treeOpt, partList1, partList2, icore=True):
-
-	sel=np.in1d(partList1,partList2)
-	nsh=np.sum(sel,dtype=np.float64)
-	n1 = len(partList1)
-	n2 = len(partList2)
-
-	#Lets check if this connection is insignificant to the poisson noise
-	#If so return a merit of zero so it will not be matched up
-	if((nsh<treeOpt["Merit_limit"]*np.sqrt(n1)) & (nsh<treeOpt["Merit_limit"]*np.sqrt(n2))):
-		return 0.0;
-
-	if(treeOpt["Merit_type"]==1):
-		merit=nsh*nsh/n1/n2
-	elif (treeOpt["Merit_type"]==2):
-		merit=nsh/n1
-	elif (treeOpt["Merit_type"]==3):
-		merit=nsh
-	elif (treeOpt["Merit_type"]==4):
-		merit=nsh/n1*(1.0+nsh/n2)
-	elif (treeOpt["Merit_type"]==5):
-		#this ranking is based on Poole+ 2017 where we rank most bound particles more
-		#assumes input particle list is meaningful (either boundness ranked or radially for example
-		ranksum= np.sum(1.0/(np.where(sel)[0]+1.0))
-		#normalize to the optimal value for nsh=n2, all particles in the descendant
-		norm=0.5772156649+np.log(n2)
-		merit=ranksum/norm
-		#and multiply this to standard Nsh^2/N1/N2 merit to correct for small objects
-		#being lost in bigger object and being deemed main progenitor
-		merit*=nsh*nsh/n1/n2
-		merit=np.sqrt(merit)
-	elif (treeOpt["Merit_type"]==6):
-		#like above but ranking both ways, that is merit is combination of rankings in a and b
-		ranksum=0
-		ranksum= np.sum(1.0/(np.where(sel)[0]+1.0))
-		#normalize to the optimal value for nsh=n2, all particles in the descendant
-		norm=0.5772156649+np.log(n1)
-		merit=ranksum/norm
-
-		#Now do the ranking the other way
-		sel2 = np.in1d(partList2,partList1)
-		ranksum=np.sum(1.0/(np.where(sel2)[0]+1.0))
-		norm=0.5772156649+np.log(n2)
-		merit*=ranksum/norm
-		merit*=nsh*nsh/n1/n2
-		merit=np.sqrt(merit)
-
-	######### Then do core to core if the core fractoion is between 0 to 1  ########
-	if((treeOpt["Core_fraction"]<1.0) & (treeOpt["Core_fraction"]>0.0) & icore):
-
-		#Find the number of core particles to use
-		CoreNpart1 = np.max([np.rint(treeOpt["Core_fraction"]*n1),treeOpt["Core_min_number_of_particles"]])
-		CoreNpart1 = np.min([n1,CoreNpart1]).astype(int)
-
-		#First do a baised core to all
-		coremerit = CalculateMerit(treeOpt,partList1[:CoreNpart1],partList2,False)
-		if(coremerit>merit):
-			merit=coremerit
-
-		CoreNpart2 = np.max([np.rint(treeOpt["Core_fraction"]*n2),treeOpt["Core_min_number_of_particles"]])
-		CoreNpart2 = np.min([n2,CoreNpart2]).astype(int)
-
-		#Calculate the core merit using just a unbaised Nsh^2/N1/N2 merit
-		sel=np.in1d(partList1[:CoreNpart1],partList2[:CoreNpart2])
-		nsh = np.sum(sel,dtype=np.float64)
-		coremerit = nsh*nsh/CoreNpart1/CoreNpart2
-
-		#Now lets check if this merit is any better, if so then update the merit
-		if(coremerit>merit):
-			merit=coremerit
-
-
-	return merit
-
-
-
-
-def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo):
+def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,snapdata,treedata,snapmerits,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo):
 
 	#Find the physical boxsize
 	boxsize = GadHeaderInfo["BoxSize"]*GadHeaderInfo["Scalefactor"]/GadHeaderInfo["h"] * unitinfo["Dist_unit"]/1000.0 # Mpc
@@ -438,10 +276,10 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 				fileno=0
 				offset = 0
 
-				# #If doing core matching finc out how many particles to match in the core of the WW halo
-				# if((treeOpt["Core_fraction"]<1.0) & (treeOpt["Core_fraction"]>0.0)):
-				# 	WWCoreNpart = np.max([np.rint(treeOpt["Core_fraction"]*npart),treeOpt["Core_min_number_of_particles"]])
-				# 	WWCoreNpart = np.min([npart,WWCoreNpart]).astype(int)
+				#If doing core matching finc out how many particles to match in the core of the WW halo
+				if((treeOpt["Core_fraction"]<1.0) & (treeOpt["Core_fraction"]>0.0)):
+					WWCoreNpart = np.max([np.rint(treeOpt["Core_fraction"]*npart),treeOpt["Core_min_number_of_particles"]])
+					WWCoreNpart = np.min([npart,WWCoreNpart]).astype(int)
 
 				#Loop over all the matches
 				for indx in indx_list:
@@ -453,7 +291,6 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 					if("Descen" in treedata.keys()):
 						MatchedDesc = treedata["Descen"][indx]
 						#Lets also extract the merit for the matched halo and lets see if this has a better match
-						# MatchedMerit = treedata["Merits"][indx]
 					else:
 						break
 
@@ -461,73 +298,36 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 					if(MatchedID not in TrackData["CheckMerged"][i].keys()):
 						TrackData["CheckMerged"][i][MatchedID]=0
 
-					# #Loop over the VELOCIraptor files to find which one it is in
-					# while((indx+1)>(offset + filenumhalos[fileno])):
-					# 	offset+=filenumhalos[fileno]
-					# 	fileno+=1
+					#Loop over the VELOCIraptor files to find which one it is in
+					while((indx+1)>(offset + filenumhalos[fileno])):
+						offset+=filenumhalos[fileno]
+						fileno+=1
 
-					# #Get the matched halo particles and properties
-					# matched_partIDs = WWio.GetHaloParticles(grpfiles[fileno],pfiles[fileno],upfiles[fileno],int(indx-offset))
+					#Get the matched halo particles and properties
+					matched_partIDs = WWio.GetHaloParticles(grpfiles[fileno],pfiles[fileno],upfiles[fileno],int(indx-offset))
 
+					######## First match all particles to all particles  ########
 
+					merit = CalculateMerit(treeOpt,boundIDs,matched_partIDs)
+					MatchedMerit = snapmerits[indx]
 
-					# ######## First match all particles to all particles  ########
+					#The connection to the VELOCIraptor halo is made if the halo has no connection and the WhereWolf halo's merit is above the merit limit or if the
+					#VELOCIraptor halo already has a connection then their merits are compared and if WhereWolf merit is 20% greater then the connection is switched
+					if(((MatchedMerit==0) & (merit>treeOpt["Merit_limit_for_next_step"])) | ((MatchedMerit>0) & (((merit-MatchedMerit)/MatchedMerit)>0.2))):
+						
+						progen=TrackData["progenitor"][i]
 
-					# merit = CalculateMerit(treeOpt,boundIDs,matched_partIDs)
+						#Only update if this halo has been tracked for at least 1 snapshot
+						if(TrackData["TrackedNsnaps"][i]>0):
+							progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
+							progenIndx = progenIndx - prevNhalo
+							prevappendTreeData["Descendants"][progenIndx]= MatchedID
+							prevappendTreeData["NumDesc"][progenIndx] = 1
+							prevappendTreeData["Merits"][progenIndx] = merit
+							WWstat["Match"]+=1
 
-					# #Lets see if the merit is better than the one that the halo already has
-					# if(merit>MatchedMerit):
-
-					# 	progen=TrackData["progenitor"][i]
-					# 	# if(TrackData["TrackedNsnaps"][i]==0):
-					# 	# 	prevupdateTreeData["ID"].append(progen)
-					# 	# 	prevupdateTreeData["Descendants"].append(MatchedID)
-					# 	# 	WWstat["MatchStart"]+=1
-
-					# 	# else:
-					# 	#Only update if this halo has been tracked for at least 1 snapshot
-					# 	if(TrackData["TrackedNsnaps"][i]>0):
-					# 		progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
-					# 		progenIndx = progenIndx - prevNhalo
-					# 		prevappendTreeData["Descendants"][progenIndx]= MatchedID
-					# 		prevappendTreeData["NumDesc"][progenIndx] = 1
-					# 		prevappendTreeData["Merits"][progenIndx] = merit
-					# 		WWstat["Match"]+=1
-
-					# 	matched = True
-					# 	break
-
-
-					# if((treeOpt["Core_fraction"]<1.0) & (treeOpt["Core_fraction"]>0.0)):
-					# 	######### Then do core to core if selected  ########
-					# 	matchNpart = len(matched_partIDs)
-					# 	MatchCoreNpart = np.max([np.rint(treeOpt["Core_fraction"]*matchNpart),treeOpt["Core_fraction"]])
-					# 	MatchCoreNpart = np.min([matchNpart,MatchCoreNpart]).astype(int)
-
-					# 	#Calculate the merit
-					# 	coremerit = CalculateMerit(treeOpt,boundIDs[:WWCoreNpart],matched_partIDs[:MatchCoreNpart])
-
-					# 	#Lets see if the merit is better than the one that the halo already has
-					# 	if(merit>MatchedMerit):
-
-					# 		progen=TrackData["progenitor"][i]
-					# 		# if(TrackData["TrackedNsnaps"][i]==0):
-					# 		# 	prevupdateTreeData["ID"].append(progen)
-					# 		# 	prevupdateTreeData["Descendants"].append(MatchedID)
-					# 		# 	WWstat["MatchStartCore"]+=1
-
-					# 		# else:
-					# 		#Only update if this halo has been tracked for at least 1 snapshot
-					# 		if(TrackData["TrackedNsnaps"][i]>0):
-					# 			progenIndx = int(TrackData["progenitor"][i]%opt.Temporal_haloidval-1)
-					# 			progenIndx = progenIndx - prevNhalo
-					# 			prevappendTreeData["Descendants"][progenIndx]= MatchedID
-					# 			prevappendTreeData["NumDesc"][progenIndx] = 1
-					# 			prevappendTreeData["Merits"][progenIndx] = coremerit
-					# 			WWstat["MatchCore"]+=1
-
-					# 		matched = True
-					# 		break
+						matched = True
+						break
 
 
 

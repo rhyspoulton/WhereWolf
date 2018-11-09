@@ -1,6 +1,27 @@
 import numpy as np 
 from mpi4py import MPI
 
+def CommunicateMerits(comm,Rank,size,isnap,istep,updateindexes,merits,allmerits):
+
+	#For each process lets broadcast the update arrays
+	for i in range(size):
+
+		#Communicate the indexes and merits
+		tmpupdateindexes = comm.bcast(updateindexes,root=i)
+		tmpmerits = comm.bcast(merits,root=i)
+
+
+		#Only need to set if not the current process
+		if(i!=Rank):
+
+			#Update each merit per snapshot
+			for j in range(istep):
+				allmerits[isnap+j+1][tmpupdateindexes[j]]=tmpmerits[j]
+
+
+
+
+
 def UpdateIDsoffsets(comm,Rank,size,snap,appendHaloData,prevupdateTreeData,appendTreeData,prevappendTreeData,prevNhalo,HALOIDVAL=1000000000000):
 
 

@@ -7,6 +7,7 @@ from mpi4py import MPI
 import WWio
 import MPIroutines
 from track import StartTrack,ContinueTrack
+from utils import ExtractHaloMerits
 import time
 from ui import WWOptions
 import argparse
@@ -30,7 +31,7 @@ haloFields=["ID","Mass_200crit","Mass_200mean","Mass_tot","R_200crit","R_200mean
 updatetreeFields=["ID","Descendants","Merits"]
 apptreeFields=["ID","NumDesc","Ranks","Descendants","Merits"]
 treeDtype={"ID":"uint64","NumDesc":"int32","Ranks":"int32","Descendants":"uint64","Merits":"float32"}
-WWstatkeys = ["TotStartTracked","NoStart","Start","TotContTrack","PartLimitStart","Merged","MergedMBP","notMerged","Mixed","ConnectPartLimit","Connect","ConnectMBP","contNSnap"]
+WWstatkeys = ["TotStartTracked","StartTrackDisp","StartFill","NoStart","Start","TotContTrack","PartLimitStart","Merged","MergedMBP","Match","notMerged","Mixed","ConnectPartLimit","Connect","ConnectMBP","contNSnap"]
 
 
 #Read the options from the config file
@@ -50,13 +51,17 @@ if Rank==0:
 	else:
 		WWstatfile = open(opt.outputdir+"/WWrunstat.txt","w")
 		WWstatfile.write("# "+" ".join(WWstatkeys) + "\n")
-	ihalostarts, ihaloends = WWio.SetupParallelIO(comm,opt,size)
+	ihalostarts, ihaloends, allnumhalos = WWio.SetupParallelIO(comm,opt,size)
 else:
-	ihalostarts=None; ihaloends=None
+	ihalostarts=None; ihaloends=None;  allnumhalos=None;
 
 #Broadcast this information to each process
 ihalostarts = comm.bcast(ihalostarts,root=0)
 ihaloends = comm.bcast(ihaloends,root=0)
+allnumhalos = comm.bcast(allnumhalos,root=0)
+
+#List of arrays to store the merits
+allmerits = [[] for i in range(opt.numsnaps)]
 
 totstart = time.time()
 
@@ -110,12 +115,23 @@ for isnap in range(opt.numsnaps):
 		snapdata = None; totnumhalos= None; atime=None; unitinfo=None
 		treeOpt=None;treedata =None
 
+
 	snapdata = comm.bcast(snapdata,root=0)
 	totnumhalos = comm.bcast(totnumhalos,root=0)
 	atime = comm.bcast(atime,root=0)
 	unitinfo = comm.bcast(unitinfo,root=0)
 	treedata = comm.bcast(treedata,root=0)
 	treeOpt = comm.bcast(treeOpt,root=0)
+
+
+	#Find the minimum of the number of steps needed to look forward, this is only needs to be done if the halos have descendant
+	if("Descen" in treedata.keys()):
+		istep=min(treeOpt["Number_of_steps"],opt.numsnaps-1 - isnap)
+
+		#Extract merits from the TreeFrog tree
+		updateindexes,merits=ExtractHaloMerits(opt,treeOpt,isnap,istep,treedata,numhalos,allnumhalos,ihalostart,ihaloend,allmerits)
+		MPIroutines.CommunicateMerits(comm,Rank,size,isnap,istep,updateindexes,merits,allmerits)
+
 
 	if(Rank==0):
 		print("Done loading halo and tree data in",time.time()-start,"now finding halos to track")
@@ -195,9 +211,8 @@ for isnap in range(opt.numsnaps):
 		continue
 
 	if(Rank==0):
-
 		print("Attempting to track",NtotTrack,"halos and continuing to track",NtrackNextSnap,"halos")
-		
+		start = time.time()
 
 	if((ntrack>0) | (ntrackNextSnap>0)):
 		allpid,allpartpos,allpartvel,allPartOffsets = WWio.GetParticleData(comm,Rank,size,opt,isnap,trackIndx,tracknpart,GadHeaderInfo,VELnumfiles,filenumhalos,pfiles,upfiles,grpfiles,newPartOffsets,nextPIDs)
@@ -226,7 +241,7 @@ for isnap in range(opt.numsnaps):
 
 		#If thre are halos to track then lers track them into the next snapshot
 		if(nTracked>0):
-			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo)
+			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,allmerits[isnap],filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo)
 			pidOffset=len(contPIDs)
 
 		#Now done Tracking lets turn the output data into arrays for easy indexing
@@ -252,7 +267,7 @@ for isnap in range(opt.numsnaps):
 		TotNappend = comm.allreduce(Nappend,MPI.SUM)
 
 		#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-		WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+		# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True
@@ -266,6 +281,9 @@ for isnap in range(opt.numsnaps):
 
 		prevappendTreeData=appendTreeData
 		prevTotNappend = TotNappend
+
+		#Done with the merits at this snapshot so the array can be deallocated
+		allmerits[isnap] = []
 
 		del appendHaloData
 		del prevupdateTreeData

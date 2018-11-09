@@ -569,6 +569,8 @@ def ReadVELOCIraptorTreeDescendant(comm,basefilename,iverbose=0):
 		treeOpt["Core_fraction"]=hdffile.attrs["Core_fraction"][...]
 		treeOpt["Core_min_number_of_particles"]=hdffile.attrs["Core_min_number_of_particles"][...]
 		treeOpt["Merit_limit"]=hdffile.attrs["Merit_limit"][...]
+		treeOpt["Merit_limit_for_next_step"]=hdffile.attrs["Merit_limit_for_next_step"][...]
+		treeOpt["Number_of_steps"]=hdffile.attrs["Number_of_steps"][...]
 		if("Merit_type" in hdffile.attrs.keys()):
 			treeOpt["Merit_type"]=hdffile.attrs["Merit_type"][...]
 		else:
@@ -616,9 +618,14 @@ def SetupParallelIO(comm,opt,nprocess):
 	ihalostart = np.zeros([nprocess,opt.numsnaps],dtype=np.int64)
 	ihaloend = np.zeros([nprocess,opt.numsnaps],dtype=np.int64)
 
+	#Setup a list of arrays to store the merits across all snapshots
+	allmerits = [[] for i in range(opt.numsnaps)]
+
 	numhalos = ReadVELOIraptorNumhalos(comm,opt)
 
 	for snap in range(opt.numsnaps):
+
+		allmerits[snap] = np.zeros(numhalos[snap],dtype=np.float32)
 
 		numPerCPU = np.floor(numhalos[snap]/np.float(nprocess))
 
@@ -637,7 +644,7 @@ def SetupParallelIO(comm,opt,nprocess):
 		ihaloend[-1,snap] = numhalos[snap]
 
 
-	return ihalostart, ihaloend
+	return ihalostart, ihaloend, numhalos
 
 
 def OpenVELOCIraptorFiles(filename):
@@ -648,11 +655,11 @@ def OpenVELOCIraptorFiles(filename):
 	"""
 
 	#First open up the first property file to read the number of files
-	propfilename=filename+".properties.0"
-	propfile=h5py.File(propfilename,"r")
-	numfiles = int(propfile["Num_of_files"][:])
+	catfilename=filename+".catalog_groups.0"
+	catfile=h5py.File(catfilename,"r")
+	numfiles = int(catfile["Num_of_files"][:])
 	numhalos = np.zeros(numfiles+1,dtype=np.int64)
-	propfile.close()
+	catfile.close()
 
 	#Setup list to store the file pointers
 	pfiles = [0 for i in range(numfiles) ]
