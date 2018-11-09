@@ -342,7 +342,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 								offset+=filenumhalos[fileno]
 								fileno+=1
 							#Calculate the merit between the halos
-							prevappendTreeData["Merits"][progenIndx] = meritList[j]
+							prevappendTreeData["Merits"][progenIndx] = merit
 
 							WWstat["Mixed"]+=1
 

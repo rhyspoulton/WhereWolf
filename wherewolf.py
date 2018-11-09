@@ -266,8 +266,11 @@ for isnap in range(opt.numsnaps):
 		TotNappend = int(0)
 		TotNappend = comm.allreduce(Nappend,MPI.SUM)
 
-		#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-		# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+		#Only need to update VELOCIraptor files if there are halos to append
+		if(TotNappend>0):
+
+			#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
+			WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True
@@ -277,7 +280,6 @@ for isnap in range(opt.numsnaps):
 			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
 			# The file is for the previous snapshot
 			WWio.OutputWhereWolfTreeData(opt,snap-1,prevappendTreeData,prevupdateTreeData)
-			prevappendTreeData = {key:np.array([]) for key in apptreeFields}
 
 		prevappendTreeData=appendTreeData
 		prevTotNappend = TotNappend
