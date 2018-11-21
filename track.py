@@ -198,8 +198,8 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 		npart=np.sum(boundSel)
 
 
-		# Check if the halo has gone below the particle limit
-		if(npart<=20): 
+		# Check if the halo has gone below the particle limit or is diffuse so its mass has gone above 2 times the initial mass from VELOCIraptor
+		if((npart<=20) | (2*TrackData["Mvir"][i]<Mass_200crit)):
 
 
 			if(TrackData["TrackedNsnaps"][i]>0):

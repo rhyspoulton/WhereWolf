@@ -123,12 +123,12 @@ for isnap in range(opt.numsnaps):
 	treedata = comm.bcast(treedata,root=0)
 	treeOpt = comm.bcast(treeOpt,root=0)
 
-
-	#Find the minimum of the number of steps needed to look forward, this is only needs to be done if the halos have descendant
+	#Populate the progenBool to mark if halos have a progenitor
 	if("Descen" in treedata.keys()):
+		#Find the minimum of the number of steps needed to look forward, this is only needs to be done if the halos have descendant
 		istep=min(treeOpt["Number_of_steps"],opt.numsnaps-1 - isnap)
 
-		#Extract merits from the TreeFrog tree
+		#Set the if a halo has progenitor and communicate this to all processes
 		updateindexes=CheckHaloHasProgen(opt,treeOpt,isnap,istep,treedata,numhalos,allnumhalos,ihalostart,ihaloend,progenBool)
 		MPIroutines.CommunicateProgenBool(comm,Rank,size,isnap,istep,updateindexes,progenBool)
 
@@ -144,7 +144,7 @@ for isnap in range(opt.numsnaps):
 		#Check if the  VELOCIraptor and TreeFrog catalogues sizes match up
 		if(snapdata["ID"].size!=treedata["Descen"].size):
 			if(Rank==0):
-				print("The number of halos in the VELOCIraptor catalogue does not match the number in the TreeFrog tree, please check they are the correct files.")
+				print("The number of halos in the VELOCIraptor catalogue (%i) does not match the number in the TreeFrog tree(%i), please check they are the correct files." %(snapdata["ID"].size,treedata["Descen"].size))
 				print("Terminating")
 				comm.Abort()
 			else:
