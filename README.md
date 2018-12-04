@@ -1,3 +1,4 @@
+![alt text](https://github.com/rhyspoulton/WhereWolf/blob/master/wherewolf_logo.png)
 # WhereWolf
 
 Developer: Rhys Poulton
