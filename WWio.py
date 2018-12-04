@@ -798,9 +798,8 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 
 	#Add the header info that this is a WWfile
 	WWtreefile.attrs["WWfile"] = 1
-	
 	# Do the Descendants dataset as this needs to be updated if it exists
-	if(("Descendants" in treefile.keys()) & (updateTreeData is not None)):
+	if(("Descendants" in treefile.keys()) & (len(updateTreeData["ID"])>0)):
 
 		#Find the location of the halos need to update
 		updateIndexes = (updateTreeData["ID"]%HALOIDVAL-1).astype(int)
@@ -840,9 +839,8 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 		TFMerits = np.asarray(treefile["Merits"])
 		dsetSize = TFRanks.size
 
-
 	#Check if there is anything to append to the tree
-	if(appendTreeData is not None):
+	if(len(appendTreeData["ID"])>0):
 
 
 		if("Descendants" in treefile.keys()):

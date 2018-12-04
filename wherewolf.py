@@ -68,7 +68,19 @@ totstart = time.time()
 #Boolean array to keep track if halos have been tracked in the snapshot
 TrackFlag = np.zeros(opt.numsnaps,dtype=bool)
 
+TotNappend = int(0)
 prevTotNappend = int(0)
+
+
+#Create a dataset to store all the halo and tree data
+appendHaloData={key:[] for key in haloFields}
+appendTreeData={key:[] for key in apptreeFields}
+prevupdateTreeData={key:[] for key in updatetreeFields}
+appendHaloData["Num_of_groups"]=np.array([0])
+appendHaloData["File_id"]=np.array([0])
+appendHaloData["Offset"]=[0]
+appendHaloData["Offset_unbound"]=[0]
+appendHaloData["Particle_IDs_unbound"]=np.array([])
 
 for isnap in range(opt.numsnaps):
 
@@ -227,15 +239,6 @@ for isnap in range(opt.numsnaps):
 	
 	#Track the halos one snapshot forwad if they need it, this is only done once there has been found that there are halos to be tracked in the next snapshot
 	if(NtrackNextSnap>0):
-		#Create a dataset to store all the halo and tree data
-		appendHaloData={key:[] for key in haloFields}
-		appendTreeData={key:[] for key in apptreeFields}
-		prevupdateTreeData={key:[] for key in updatetreeFields}
-		appendHaloData["Num_of_groups"]=np.array([0])
-		appendHaloData["File_id"]=np.array([0])
-		appendHaloData["Offset"]=[0]
-		appendHaloData["Offset_unbound"]=[0]
-		appendHaloData["Particle_IDs_unbound"]=np.array([])
 
 		nTracked = len(TrackData["progenitor"]) 
 
@@ -269,31 +272,43 @@ for isnap in range(opt.numsnaps):
 		#Only need to update VELOCIraptor files if there are halos to append
 		if(TotNappend>0):
 
+			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
+
 			#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
 			WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+
+			#Reset the halodata once it has been outputted
+			appendHaloData={key:[] for key in haloFields}
+			appendHaloData["Num_of_groups"]=np.array([0])
+			appendHaloData["File_id"]=np.array([0])
+			appendHaloData["Offset"]=[0]
+			appendHaloData["Offset_unbound"]=[0]
+			appendHaloData["Particle_IDs_unbound"]=np.array([])
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True
 
-		# If the rootprocess then write to the treedata
-		if(Rank==0):
-			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
-			# The file is for the previous snapshot
-			WWio.OutputWhereWolfTreeData(opt,snap-1,prevappendTreeData,prevupdateTreeData)
-
-		prevappendTreeData=appendTreeData
-		prevTotNappend = TotNappend
-
 		#Done with the merits at this snapshot so the array can be deallocated
 		progenBool[isnap] = []
-
-		del appendHaloData
-		del prevupdateTreeData
 
 	else:
 		# Close all the files
 		WWio.CloseVELOCIraptorFiles(opt.VELFileList[snap],VELnumfiles,pfiles,upfiles,grpfiles)
 
+	# If the rootprocess then write to the treedata
+	if((Rank==0) & ((prevTotNappend>0) | (len(prevupdateTreeData["ID"])>0))):
+
+		# The file is for the previous snapshot
+		WWio.OutputWhereWolfTreeData(opt,snap-1,prevappendTreeData,prevupdateTreeData)
+
+		prevappendTreeData=appendTreeData
+
+	prevTotNappend = TotNappend
+
+	#Reset the treedata once it has been outputted
+	appendTreeData={key:[] for key in apptreeFields}
+	prevupdateTreeData={key:[] for key in updatetreeFields}
+	
 
 	#Try to find halos to track if not at the last snapshot
 	if(("Descen" in treedata.keys()) & (ntrack>0)):
@@ -342,13 +357,13 @@ if(Rank==0): WWstatfile.close()
 if(any(TrackFlag)):
 
 	#Gather the final tree data
-	appendTreeData,prevupdateTreeData=MPIroutines.GatheroutputTreeData(comm,Rank,size,appendTreeData,None,treeDtype)
+	appendTreeData,prevupdateTreeData=MPIroutines.GatheroutputTreeData(comm,Rank,size,appendTreeData,prevupdateTreeData,treeDtype)
 
 	#If the root process then generate the final treefile and filelists
 	if(Rank==0):
 
 		#Output the final tree file
-		WWio.OutputWhereWolfTreeData(opt,snap,appendTreeData,None)
+		WWio.OutputWhereWolfTreeData(opt,snap,appendTreeData,prevupdateTreeData)
 		TrackFlag[isnap] = True
 
 
