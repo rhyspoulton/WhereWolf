@@ -421,28 +421,6 @@ def GetGadFileMinMax(comm,Rank,size,GadFilename,GadHeaderInfo):
 	return AllMins,AllMaxs
 
 
-
-
-
-def ReadVELOIraptorNumhalos(comm,opt):
-
-	numhalos = np.zeros(opt.numsnaps,dtype=np.uint64)
-
-	for i,snap in enumerate(range(opt.Snapshot_offset,opt.Snapshot_offset+opt.numsnaps)):
-
-		filename= opt.VELFileList[snap] + ".properties.0"
-
-		if(os.path.isfile(filename)==False):
-			print("VELOCIraptor file",filename,"not found")
-			comm.Abort()
-
-		hdffile = h5py.File(filename,"r")
-
-		numhalos[i] = np.uint64(hdffile["Total_num_of_groups"][0])
-
-		hdffile.close()
-
-	return numhalos
 	
 
 
@@ -617,18 +595,30 @@ def SetupParallelIO(comm,opt,nprocess):
 	#Set the number of halos per cpu	
 	ihalostart = np.zeros([nprocess,opt.numsnaps],dtype=np.int64)
 	ihaloend = np.zeros([nprocess,opt.numsnaps],dtype=np.int64)
+	numhalos = np.zeros(opt.numsnaps,dtype=np.uint64)
 
-	#Setup a list of arrays to store the merits across all snapshots
-	allmerits = [[] for i in range(opt.numsnaps)]
-
-	numhalos = ReadVELOIraptorNumhalos(comm,opt)
 
 	for snap in range(opt.numsnaps):
 
-		allmerits[snap] = np.zeros(numhalos[snap],dtype=np.float32)
+		#Lets load the halos from the properties file
+		filename= opt.VELFileList[snap] + ".properties.0"
 
+		if(os.path.isfile(filename)==False):
+			print("VELOCIraptor file",filename,"not found")
+			print("WhereWolf only works when VELOCIraptor has been run with MPI and number of threads > 1")
+			comm.Abort()
+		try:
+			hdffile = h5py.File(filename,"r")
+		except OSError:
+			print("WhereWolf only works with hdf5 output of VELOCIraptor")
+			comm.Abort()
+
+		numhalos[snap] = np.uint64(hdffile["Total_num_of_groups"][0])
+
+		hdffile.close()
+
+		#Lets set the number of halos per cpu-
 		numPerCPU = np.floor(numhalos[snap]/np.float(nprocess))
-
 		istart = 0
 		iend = numPerCPU
 
