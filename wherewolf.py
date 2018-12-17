@@ -1,3 +1,7 @@
+
+import sys
+sys.path.append(sys.argv[0].replace("wherewolf.py",""))
+sys.path.append(sys.argv[0].replace("wherewolf.py","")+"VELOCIraptor_Python_Tools")
 import numpy as np 
 import warnings
 with warnings.catch_warnings():
@@ -12,6 +16,8 @@ import time
 from ui import WWOptions
 import argparse
 import os
+import velociraptor_python_tools as VPT
+
 
 #Setup MPI
 comm = MPI.COMM_WORLD
@@ -121,17 +127,16 @@ for isnap in range(opt.numsnaps):
 
 	if(Rank==0):
 		#Read the VELOCIraptor property file and the treefrog tree
-		snapdata, totnumhalos, atime, unitinfo  = WWio.ReadPropertyFile(opt.VELFileList[snap],GadHeaderInfo,ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
+		snapdata, totnumhalos  = VPT.ReadPropertyFile(opt.VELFileList[snap],ibinary=2,desiredfields = ["ID","Mass_200crit","R_200crit","Xc","Yc","Zc","VXc","VYc","VZc","hostHaloID","cNFW","npart"])
+		WWio.AdjustforPeriod(snapdata)
 		treeOpt,treedata = WWio.ReadVELOCIraptorTreeDescendant(comm,opt.TreeFileList[snap])
 	else:
-		snapdata = None; totnumhalos= None; atime=None; unitinfo=None
+		snapdata = None; totnumhalos= None
 		treeOpt=None;treedata =None
 
 
 	snapdata = comm.bcast(snapdata,root=0)
 	totnumhalos = comm.bcast(totnumhalos,root=0)
-	atime = comm.bcast(atime,root=0)
-	unitinfo = comm.bcast(unitinfo,root=0)
 	treedata = comm.bcast(treedata,root=0)
 	treeOpt = comm.bcast(treeOpt,root=0)
 
@@ -142,7 +147,7 @@ for isnap in range(opt.numsnaps):
 
 		#Set the if a halo has progenitor and communicate this to all processes
 		updateindexes=CheckHaloHasProgen(opt,treeOpt,isnap,istep,treedata,numhalos,allnumhalos,ihalostart,ihaloend,progenBool)
-		MPIroutines.CommunicateProgenBool(comm,Rank,size,isnap,istep,updateindexes,progenBool)
+		MPIroutines.CommunicateProgenBool(comm ,Rank,size,isnap,istep,updateindexes,progenBool)
 
 
 	if(Rank==0):
@@ -244,7 +249,7 @@ for isnap in range(opt.numsnaps):
 
 		#If thre are halos to track then lers track them into the next snapshot
 		if(nTracked>0):
-			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,progenBool[isnap],filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt,unitinfo)
+			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,progenBool[isnap],filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt)
 			pidOffset=len(contPIDs)
 
 		#Now done Tracking lets turn the output data into arrays for easy indexing
@@ -275,15 +280,15 @@ for isnap in range(opt.numsnaps):
 			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
 
 			#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-			WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+			# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
 
-			#Reset the halodata once it has been outputted
-			appendHaloData={key:[] for key in haloFields}
-			appendHaloData["Num_of_groups"]=np.array([0])
-			appendHaloData["File_id"]=np.array([0])
-			appendHaloData["Offset"]=[0]
-			appendHaloData["Offset_unbound"]=[0]
-			appendHaloData["Particle_IDs_unbound"]=np.array([])
+		#Reset the halodata once it has been outputted
+		appendHaloData={key:[] for key in haloFields}
+		appendHaloData["Num_of_groups"]=np.array([0])
+		appendHaloData["File_id"]=np.array([0])
+		appendHaloData["Offset"]=[0]
+		appendHaloData["Offset_unbound"]=[0]
+		appendHaloData["Particle_IDs_unbound"]=np.array([])
 
 		# Set in the flag that a treefile has been created for a snapshot before
 		TrackFlag[isnap-1] = True
@@ -312,7 +317,7 @@ for isnap in range(opt.numsnaps):
 
 	#Try to find halos to track if not at the last snapshot
 	if(("Descen" in treedata.keys()) & (ntrack>0)):
-		startPartOffsets,startPIDs  = StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,allPartOffsets[nTracked:],GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat,unitinfo)
+		startPartOffsets,startPIDs  = StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,allPartOffsets[nTracked:],GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat)
 
 	#Update the nextPIDS and the newPartOffsets
 	if((newPartOffsets is not None) & (startPartOffsets is not None)):

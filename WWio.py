@@ -421,7 +421,26 @@ def GetGadFileMinMax(comm,Rank,size,GadFilename,GadHeaderInfo):
 	return AllMins,AllMaxs
 
 
-	
+def AdjustforPeriod(snapdata):
+    """
+    Map halo positions from 0 to box size
+    """
+
+    boxval = snapdata["SimulationInfo"]["Period"]
+    wdata = np.where(snapdata["Xc"] < 0)
+    snapdata["Xc"][wdata] += boxval
+    wdata = np.where(snapdata["Yc"] < 0)
+    snapdata["Yc"][wdata] += boxval
+    wdata = np.where(snapdata["Zc"] < 0)
+    snapdata["Zc"][wdata] += boxval
+
+    wdata = np.where(snapdata["Xc"] > boxval)
+    snapdata["Xc"][wdata] -= boxval
+    wdata = np.where(snapdata["Yc"] > boxval)
+    snapdata["Yc"][wdata] -= boxval
+    wdata = np.where(snapdata["Zc"] > boxval)
+    snapdata["Zc"][wdata] -= boxval
+
 
 
 def ReadVELOIraptorCatalogueNpartSplit(basefilename,ihalostart,ihaloend,filenumhalos,iverbose=0):
