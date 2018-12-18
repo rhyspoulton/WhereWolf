@@ -246,7 +246,6 @@ for isnap in range(opt.numsnaps):
 	if(NtrackNextSnap>0):
 
 		nTracked = len(TrackData["progenitor"]) 
-
 		#If thre are halos to track then lers track them into the next snapshot
 		if(nTracked>0):
 			newPartOffsets,contPIDs = ContinueTrack(opt,isnap,TrackData,allpid,allpartpos,allpartvel,allPartOffsets,snapdata,treedata,progenBool[isnap],filenumhalos,pfiles,upfiles,grpfiles,GadHeaderInfo,appendHaloData,appendTreeData,prevappendTreeData,prevupdateTreeData,prevNhalo,WWstat,treeOpt)
@@ -254,6 +253,7 @@ for isnap in range(opt.numsnaps):
 
 		#Now done Tracking lets turn the output data into arrays for easy indexing
 		for key in apptreeFields:	appendTreeData[key] = np.asarray(appendTreeData[key],dtype=treeDtype[key])
+		for key in apptreeFields:	prevappendTreeData[key] = np.asarray(prevappendTreeData[key],dtype=treeDtype[key])
 		for key in updatetreeFields:	prevupdateTreeData[key] = np.asarray(prevupdateTreeData[key],dtype=treeDtype[key])
 		for key in haloFields: appendHaloData[key] = np.asarray(appendHaloData[key])
 
@@ -277,7 +277,8 @@ for isnap in range(opt.numsnaps):
 		#Only need to update VELOCIraptor files if there are halos to append
 		if(TotNappend>0):
 
-			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
+			if(Rank==0):
+				print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
 
 			#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
 			WWio.AddWhereWolfFileParallel(comm,Rank,size,opt,snap,appendHaloData,Nappend,TotNappend,snapdata["UnitInfo"])
@@ -306,7 +307,7 @@ for isnap in range(opt.numsnaps):
 		# The file is for the previous snapshot
 		WWio.OutputWhereWolfTreeData(opt,snap-1,prevappendTreeData,prevupdateTreeData)
 
-		prevappendTreeData=appendTreeData
+	prevappendTreeData=appendTreeData
 
 	prevTotNappend = TotNappend
 
