@@ -280,7 +280,7 @@ for isnap in range(opt.numsnaps):
 			print("Total num halos:",TotNappend,prevNhalo,TotNappend + prevNhalo)
 
 			#Add WW VELOCIraptor file per process while updating the VELOCIraptor files
-			# WWio.AddWhereWolfFileParallel(comm,Rank,size,opt.VELFileList[snap],appendHaloData,Nappend,TotNappend)
+			WWio.AddWhereWolfFileParallel(comm,Rank,size,opt,snap,appendHaloData,Nappend,TotNappend,snapdata["UnitInfo"])
 
 		#Reset the halodata once it has been outputted
 		appendHaloData={key:[] for key in haloFields}
@@ -386,13 +386,13 @@ if(any(TrackFlag)):
 				treefilelist.write(opt.TreeFileList[isnap+opt.Snapshot_offset] + "\n")
 		treefilelist.close()
 
-		if((opt.Snapshot_offset>0) & (os.path.exists(opt.outputdir+"/snaplist.txt"))):
-			snaplist = open(opt.outputdir+"/snaplist.txt","a")
+		if((opt.Snapshot_offset>0) & (os.path.exists(opt.outputdir+"/WWsnaplist.txt"))):
+			snaplist = open(opt.outputdir+"/WWsnaplist.txt","a")
 		else:
-			snaplist = open(opt.outputdir+"/snaplist.txt","w")
+			snaplist = open(opt.outputdir+"/WWsnaplist.txt","w")
 
 		for isnap in range(opt.numsnaps):
-			snaplist.write(opt.VELFileList[isnap+opt.Snapshot_offset] +"\n")
+			snaplist.write(opt.outputdir+"snapshot_%03d.VELOCIraptor.WW" %(isnap+opt.Snapshot_offset) +"\n")
 		snaplist.close()
 
 		print("Tracking done in",time.time() - totstart)

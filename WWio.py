@@ -1012,10 +1012,26 @@ def OutputWhereWolfTreeData(opt,snap,appendTreeData,updateTreeData,HALOIDVAL=100
 
 
 
-def AddWhereWolfFileParallel(comm,Rank,size,catfilename,appendData,Nappend,TotNappend):
+def AddWhereWolfFileParallel(comm,Rank,size,opt,snap,appendData,Nappend,TotNappend,unitinfo):
 
 	if(Rank==0):
 		print("Adding",TotNappend,"haloes to the VELOCIraptor files")
+
+	#Convert the properties back to the units that VELOCIraptor is in
+	appendData["Mass_200crit"]/=unitinfo["Mass_unit_to_solarmass"]
+	appendData["Mass_200mean"]/=unitinfo["Mass_unit_to_solarmass"]
+	appendData["Mass_tot"]/=unitinfo["Mass_unit_to_solarmass"]
+	appendData["R_200crit"]/=unitinfo["Length_unit_to_kpc"]/1000
+	appendData["R_200mean"]	/=unitinfo["Length_unit_to_kpc"]/1000
+	appendData["Xc"]/=unitinfo["Length_unit_to_kpc"]/1000
+	appendData["Yc"]/=unitinfo["Length_unit_to_kpc"]/1000
+	appendData["Zc"]/=unitinfo["Length_unit_to_kpc"]/1000
+	appendData["VXc"]/=unitinfo["Velocity_unit_to_kms"]
+	appendData["VYc"]/=unitinfo["Velocity_unit_to_kms"]
+	appendData["VZc"]/=unitinfo["Velocity_unit_to_kms"]
+	appendData["sigV"]/=unitinfo["Velocity_unit_to_kms"]
+	appendData["Vmax"]/=unitinfo["Velocity_unit_to_kms"]
+	appendData["Rmax"]/=unitinfo["Length_unit_to_kpc"]/1000
 
 	
 
@@ -1026,82 +1042,31 @@ def AddWhereWolfFileParallel(comm,Rank,size,catfilename,appendData,Nappend,TotNa
 	appendData["Number_of_substructures_in_halo"]=np.zeros(TotNappend)
 	for filext in ext:
 
-		datatype={}
+		#Read the VELOCIraptor files and extract all the fieldnames and thier datatypes
 
+		#Have the main thread read the information from the catalog and then broadcast it to the other thread
 		if(Rank==0):
-			filename=catfilename+filext+".0"
-
+			filename=opt.VELFileList[snap]+filext+".0"
 			halofile=h5py.File(filename,"r")
-			numfiles=int(halofile["Num_of_files"][0])
 
-
-			if((filext==".catalog_particles.unbound") or (filext==".catalog_particles")):  
-
-				Total_num_of_particles_in_all_groups=halofile["Total_num_of_particles_in_all_groups"][0]+ numpart
-
-			elif((filext==".properties") or (filext==".catalog_groups") or (filext==".hierarchy")):
-
-				Total_num_of_groups=halofile["Total_num_of_groups"][0]+TotNappend
-
-
+			datatype={}
 			fieldnames = list(halofile.keys())
-
 			for field in fieldnames: datatype[field]=halofile[field].dtype
 			halofile.close()
 
 		else:
-
 			fieldnames = None
 			datatype = None
-			numfiles = None
-
-			if((filext==".catalog_particles.unbound") or (filext==".catalog_particles")):  
-				Total_num_of_particles_in_all_groups = None
-
-			elif((filext==".properties") or (filext==".catalog_groups") or (filext==".hierarchy")):
-				Total_num_of_groups = None
 
 		#Done extracting the data from the VELOCIraptor file
 
 		#Now lets broadcast the data to the other processes
 		fieldnames = comm.bcast(fieldnames,root=0)
 		datatype = comm.bcast(datatype,root=0)
-		numfiles = comm.bcast(numfiles,root=0)
 
-
-		if((filext==".catalog_particles.unbound") or (filext==".catalog_particles")):  
-			Total_num_of_particles_in_all_groups = comm.bcast(Total_num_of_particles_in_all_groups,root=0)
-
-		elif((filext==".properties") or (filext==".catalog_groups") or (filext==".hierarchy")):
-			Total_num_of_groups = comm.bcast(Total_num_of_groups,root=0)
-
-
-
-		#Update the appendData to include the data from the the other VELOCIraptor halos
-		if((filext==".catalog_particles.unbound") or (filext==".catalog_particles")):  
-
-				if(filext[-7:]=="unbound"):
-					appendData["Num_of_particles_in_groups"]=0
-				else:
-					appendData["Num_of_particles_in_groups"]=numpart
-
-				appendData["Total_num_of_particles_in_all_groups"]=Total_num_of_particles_in_all_groups
-				#appendData["Particle_types"]=np.ones(appendData["Num_of_particles_in_groups"])
-
-		elif((filext==".properties") or (filext==".catalog_groups") or (filext==".hierarchy")):
-
-			appendData["Total_num_of_groups"]=Total_num_of_groups
-
-		appendData["Num_of_files"]=numfiles+size
-		appendData["File_id"]=numfiles + Rank
-
-			
-		#Write out the WW halos
-
-		WWfilename=catfilename+filext+"."+str(numfiles + Rank)
-
+		#Write out the WW halos if the data exits, otherwise it is set to -1 for the WW halos
+		WWfilename=opt.outputdir+"snapshot_%03d.VELOCIraptor.WW" %snap+filext+"."+str(Rank)
 		halofile=h5py.File(WWfilename,"w")
-
 		halofile.attrs["WWfile"]=1
 		
 		for key in fieldnames:
@@ -1114,136 +1079,49 @@ def AddWhereWolfFileParallel(comm,Rank,size,catfilename,appendData,Nappend,TotNa
 		halofile.close()
 
 
-		if(Rank==0):
+		#Have each process update the VELOCIraptor files to include the WhereWolf halos
+		# if(Rank==0):
+		# 	numFilesPerCPU = int(numfiles/size)
 
+		# 	ifilestart = 0
+		# 	ifileend =  numFilesPerCPU
 
-			numFilesPerCPU = int(numfiles/size)
+		# 	processfilestart = ifilestart
+		# 	processfileend = ifileend
 
-			ifilestart = 0
-			ifileend =  numFilesPerCPU
+		# 	for iprocess in range(1,size):
 
-			processfilestart = ifilestart
-			processfileend = ifileend
+		# 		processfilestart = processfileend 
+		# 		processfileend += numFilesPerCPU
 
+		# 		comm.send(processfilestart,dest=iprocess,tag=17)
 
-			for iprocess in range(1,size):
-
-
-
-				processfilestart = processfileend 
-				processfileend += numFilesPerCPU
-
-				comm.send(processfilestart,dest=iprocess,tag=17)
-
-				if(iprocess==size-1):
-					comm.send(numfiles,dest=iprocess,tag=26)
-				else:
-					comm.send(processfileend,dest=iprocess,tag=26)
+		# 		if(iprocess==size-1):
+		# 			comm.send(numfiles,dest=iprocess,tag=26)
+		# 		else:
+		# 			comm.send(processfileend,dest=iprocess,tag=26)
 		
-		else:
-			ifilestart=comm.recv(source=0,tag=17)
-			ifileend = comm.recv(source=0,tag=26)
-
-	
+		# else:
+		# 	ifilestart=comm.recv(source=0,tag=17)
+		# 	ifileend = comm.recv(source=0,tag=26)
 
 
+		# #Now update the data ine the VELOCIraptor files to include the WW halos 
+		# for j in range(ifilestart,ifileend):
+		# 	filename=catfilename+filext+"."+str(j)
+		# 	# print(filename)
 
-		#Now update the data ine the VELOCIraptor files to include the WW halos 
-		for j in range(ifilestart,ifileend):
-			filename=catfilename+filext+"."+str(j)
-			# print(filename)
+		# 	halofile=h5py.File(filename,"r+")
 
-			halofile=h5py.File(filename,"r+")
+		# 	halofile["Num_of_files"][...]=numfiles+size
 
-			halofile["Num_of_files"][...]=numfiles+size
+		# 	if((filext==".catalog_particles.unbound") or (filext==".catalog_particles")):  
+		# 		halofile["Total_num_of_particles_in_all_groups"][...]=Total_num_of_particles_in_all_groups
 
-			if((filext==".catalog_particles.unbound") or (filext==".catalog_particles")):  
-				halofile["Total_num_of_particles_in_all_groups"][...]=Total_num_of_particles_in_all_groups
+		# 	elif((filext==".properties") or (filext==".catalog_groups") or (filext==".hierarchy")):
+		# 		halofile["Total_num_of_groups"][...]=Total_num_of_groups
 
-			elif((filext==".properties") or (filext==".catalog_groups") or (filext==".hierarchy")):
-				halofile["Total_num_of_groups"][...]=Total_num_of_groups
-
-			halofile.close()
-
-
-def AddWhereWolfFile(catfilename,appendData):
-
-	print("Adding the data to the VELOCIraptor files")
-	
-
-	ext=[".properties",".catalog_groups",".hierarchy",".catalog_particles",".catalog_parttypes",".catalog_particles.unbound",".catalog_parttypes.unbound"]
-	# ext=[".properties",".catalog_groups",".catalog_particles",".catalog_particles.unbound"]
-	numgroups=appendData["Num_of_groups"]
-	appendData["Number_of_substructures_in_halo"]=np.zeros(numgroups)
-	for filext in ext:
-
-		datatype={}
-		filename=catfilename+filext+".0"
-
-		halofile=h5py.File(filename,"r+")
-		numfiles=int(halofile["Num_of_files"][:])
-
-
-		if((filext==".catalog_particles.unbound") or (filext==".catalog_particles") or (filext==".catalog_parttypes.unbound") or (filext==".catalog_parttypes")):  
-
-			if(filext[-7:]=="unbound"):
-				appendData["Num_of_particles_in_groups"]=0
-			else:
-				appendData["Num_of_particles_in_groups"]=len(appendData["Particle_IDs"])
-
-			numpart=appendData["Num_of_particles_in_groups"]
-			Total_num_of_particles_in_all_groups=halofile["Total_num_of_particles_in_all_groups"][:]+ numpart
-			appendData["Total_num_of_particles_in_all_groups"]=Total_num_of_particles_in_all_groups
-			appendData["Particle_types"]=np.ones(appendData["Num_of_particles_in_groups"])
-
-		elif((filext==".properties") or (filext==".catalog_groups") or (filext==".hierarchy")):
-
-			Total_num_of_groups=halofile["Total_num_of_groups"][:]+numgroups
-			appendData["Total_num_of_groups"]=Total_num_of_groups
-
-		appendData["Num_of_files"]=numfiles+1
-		appendData["File_id"]=numfiles
-
-
-		fieldnames = list(halofile.keys())
-
-		for field in fieldnames: datatype[field]=halofile[field].dtype
-		halofile.close()
-
-		for j in range(numfiles):
-			filename=catfilename+filext+"."+str(j)
-
-			halofile=h5py.File(filename,"r+")
-
-			halofile["Num_of_files"][:]=numfiles+1
-
-			if((filext==".catalog_particles.unbound") or (filext==".catalog_particles") or (filext==".catalog_parttypes.unbound") or (filext==".catalog_parttypes")):  
-				halofile["Total_num_of_particles_in_all_groups"][:]=Total_num_of_particles_in_all_groups
-
-			elif((filext==".properties") or (filext==".catalog_groups") or (filext==".hierarchy")):
-				halofile["Total_num_of_groups"][:]=Total_num_of_groups
-
-			halofile.close()
-			
-		
-
-		WWfilename=catfilename+filext+"."+str(numfiles)
-
-		halofile=h5py.File(WWfilename,"w")
-
-		halofile.attrs["WWfile"]=1
-
-		
-		for key in fieldnames:
-			if((key=="Particle_IDs") & (filext[-7:]=="unbound")):
-				halofile.create_dataset(key,data=np.array(appendData["Particle_IDs_unbound"]),dtype=datatype[key])
-			elif(key in appendData.keys()):	
-				halofile.create_dataset(key,data=np.array(appendData[key]),dtype=datatype[key])
-			else:
-				halofile.create_dataset(key,data=-1*np.ones(numgroups),dtype=datatype[key])
-		halofile.close()
-
-
+		# 	halofile.close()
 
 
 def Reset_Files(VELFilename):
