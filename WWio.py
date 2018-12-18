@@ -617,10 +617,10 @@ def SetupParallelIO(comm,opt,nprocess):
 	numhalos = np.zeros(opt.numsnaps,dtype=np.uint64)
 
 
-	for snap in range(opt.numsnaps):
+	for isnap in range(opt.numsnaps):
 
 		#Lets load the halos from the properties file
-		filename= opt.VELFileList[snap] + ".properties.0"
+		filename= opt.VELFileList[isnap+opt.Snapshot_offset] + ".properties.0"
 
 		if(os.path.isfile(filename)==False):
 			print("VELOCIraptor file",filename,"not found")
@@ -632,25 +632,25 @@ def SetupParallelIO(comm,opt,nprocess):
 			print("WhereWolf only works with hdf5 output of VELOCIraptor")
 			comm.Abort()
 
-		numhalos[snap] = np.uint64(hdffile["Total_num_of_groups"][0])
+		numhalos[isnap] = np.uint64(hdffile["Total_num_of_groups"][0])
 
 		hdffile.close()
 
 		#Lets set the number of halos per cpu-
-		numPerCPU = np.floor(numhalos[snap]/np.float(nprocess))
+		numPerCPU = np.floor(numhalos[isnap]/np.float(nprocess))
 		istart = 0
 		iend = numPerCPU
 
 		for i in range(nprocess):
 
-			ihalostart[i,snap] = istart
-			ihaloend[i,snap] = iend
+			ihalostart[i,isnap] = istart
+			ihaloend[i,isnap] = iend
 
 			istart=iend
 			iend+=numPerCPU
 			
 
-		ihaloend[-1,snap] = numhalos[snap]
+		ihaloend[-1,isnap] = numhalos[isnap]
 
 
 	return ihalostart, ihaloend, numhalos

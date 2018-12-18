@@ -6,9 +6,6 @@ import WWio
 from scipy.spatial import cKDTree
 from utils import CalculateMerit,MergeHalo
 
-
-G = 43.0211349
-
 def StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos,allpartvel,partOffsets,GadHeaderInfo,snapdata,treedata,TrackData,pidOffset,WWstat):
 
 	#Find the physical boxsize
@@ -26,8 +23,8 @@ def StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos
 		halopos=np.asarray([snapdata["Xc"][Indx],snapdata["Yc"][Indx],snapdata["Zc"][Indx]]) * snapdata["UnitInfo"]["Length_unit_to_kpc"]/1000 #Mpc
 		halovel=np.asarray([snapdata["VXc"][Indx],snapdata["VYc"][Indx],snapdata["VZc"][Indx]]) * snapdata["UnitInfo"]["Velocity_unit_to_kms"]
 		conc=snapdata["cNFW"][Indx]
-		Mass_200crit=snapdata["Mass_200crit"][Indx]
-		R_200crit=snapdata["R_200crit"][Indx]
+		Mass_200crit=snapdata["Mass_200crit"][Indx]*snapdata["UnitInfo"]["Mass_unit_to_solarmass"]
+		R_200crit=snapdata["R_200crit"][Indx] * snapdata["UnitInfo"]["Length_unit_to_kpc"]/1000 #Mpc
 		npart =snapdata["npart"][Indx]
 
 
@@ -67,7 +64,7 @@ def StartTrack(opt,snap,trackIndx,trackMergeDesc,trackDispFlag,allpid,allpartpos
 		vr=np.sqrt((partvel[:,0]-halovel[0])**2 + (partvel[:,1]-halovel[1])**2 + (partvel[:,2]-halovel[2])**2)
 
 		#Calculate the circular velocities for the particles in the halo
-		Vesc_calc=cf.cosNFWvesc(r, Mass_200crit, conc,z = GadHeaderInfo["Redshift"],f=1,Munit=snapdata["UnitInfo"]["Mass_unit_to_solarmass"],Dist="Ang")
+		Vesc_calc=cf.cosNFWvesc(r, Mass_200crit, conc,z = GadHeaderInfo["Redshift"],f=1,Munit=1,Dist="Ang")
 
 		#Iterate on posistion until less than 100 particles or tracking less than 10% of the halos paricles
 		j=0
@@ -185,16 +182,15 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 		r[r==0] = 1e-5 
 
 		#Find the R_200crit and Mass_200crit from rhocrit
-		R_200crit=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhocrit/snapdata["UnitInfo"]["Mass_unit_to_solarmass"],200,GadHeaderInfo["partMass"]*snapdata["UnitInfo"]["Mass_unit_to_solarmass"]/1e10)
-		Mass_200crit=cf.coshaloRvirToMvir(R_200crit,rhocrit,200,Munit=snapdata["UnitInfo"]["Mass_unit_to_solarmass"])
+		R_200crit=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhocrit,200,GadHeaderInfo["partMass"]*1e10)
+		Mass_200crit=cf.coshaloRvirToMvir(R_200crit,rhocrit,200,Munit=1)
 
 		#Calculate the escape velocity from the potential
-		Vesc_calc=cf.cosNFWvesc(r, Mass_200crit, c=TrackData["Conc"][i], z = GadHeaderInfo["Redshift"],f=1,Munit=snapdata["UnitInfo"]["Mass_unit_to_solarmass"],Dist="Ang")
+		Vesc_calc=cf.cosNFWvesc(r, Mass_200crit, c=TrackData["Conc"][i], z = GadHeaderInfo["Redshift"],f=1,Munit=1,Dist="Ang")
 
 		#Find the particles which are bound to the halo
 		boundSel = (vr<Vesc_calc) & (r<R_200crit)
 		npart=np.sum(boundSel)
-
 
 		# Check if the halo has gone below the particle limit or is diffuse so its mass has gone above 2 times the initial mass from VELOCIraptor
 		if((npart<=20) | (2*TrackData["Mvir"][i]<Mass_200crit)):
@@ -316,10 +312,15 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 						meritList.append(merit)
 						MatchedIDList.append(MatchedID)
 
-					#Find the ratio of how far away the halo is to see if it is within 0.1Rvir
-					ratioradius2 = ((meanpos[0]-snapdata["Xc"][indx])**2 + (meanpos[1]-snapdata["Yc"][indx])**2 + (meanpos[2]-snapdata["Zc"][indx])**2)/(snapdata["R_200crit"][indx]*snapdata["R_200crit"][indx])
+					Matchedx=snapdata["Xc"][indx]*snapdata["UnitInfo"]["Length_unit_to_kpc"]/1000
+					Matchedy=snapdata["Yc"][indx]*snapdata["UnitInfo"]["Length_unit_to_kpc"]/1000
+					Matchedz=snapdata["Zc"][indx]*snapdata["UnitInfo"]["Length_unit_to_kpc"]/1000
+					MatchedR_200crit=snapdata["R_200crit"][indx]*snapdata["UnitInfo"]["Length_unit_to_kpc"]/1000
 
-					if((ratioradius2<0.1) & (snapdata["Mass_200crit"][indx]>0.5*Mass_200crit)):
+					#Find the ratio of how far away the halo is to see if it is within 0.1Rvir
+					ratioradius2 = ((meanpos[0]-Matchedx)**2 + (meanpos[1]-Matchedy)**2 + (meanpos[2]-Matchedz)**2)/(MatchedR_200crit*MatchedR_200crit)
+
+					if((ratioradius2<0.01) & (snapdata["Mass_200crit"][indx]*snapdata["UnitInfo"]["Mass_unit_to_solarmass"]>0.5*Mass_200crit)):
 						#If it is within 0.1 Rvir add one to the counter
 						TrackData["CheckMerged"][i][MatchedID]+=1
 
@@ -418,9 +419,9 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 		ID=(snap+opt.Snapshot_offset)*opt.Temporal_haloidval +(len(snapdata["ID"]) + len(appendHaloData["ID"])) +1
 
 		# Calculate properties of the halo
-		R_200mean=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhomean/snapdata["UnitInfo"]["Mass_unit_to_solarmass"],200,GadHeaderInfo["partMass"]*snapdata["UnitInfo"]["Mass_unit_to_solarmass"]/1e10)
-		Mass_200mean=cf.coshaloRvirToMvir(R_200mean,rhomean,200,Munit=snapdata["UnitInfo"]["Mass_unit_to_solarmass"])
-		Mass_tot = npart * GadHeaderInfo["partMass"]*snapdata["UnitInfo"]["Mass_unit_to_solarmass"]/1e10
+		R_200mean=cf.cosFindR200(r[TrackData["boundSel"][i]][r[TrackData["boundSel"][i]]<15*np.median(r[TrackData["boundSel"][i]])],rhomean,200,GadHeaderInfo["partMass"]*1e10)
+		Mass_200mean=cf.coshaloRvirToMvir(R_200mean,rhomean,200,Munit=1)
+		Mass_tot = npart * GadHeaderInfo["partMass"]*1e10 #Units of Msun
 		sigV = np.mean(np.sqrt((vr-np.mean(vr))**2))
 		Vmax = vr[vr.argmax()]
 		Rmax = r[r.argmax()]
@@ -475,8 +476,8 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 
 			# Loop over the closet matches
 			for dist,indx in zip(dists,indexes):
-				hostR200 = snapdata["R_200crit"][indx]
-				hostM200 = snapdata["Mass_200crit"][indx]
+				hostR200 = snapdata["R_200crit"][indx]*snapdata["UnitInfo"]["Length_unit_to_kpc"]/1000 #Mpc
+				hostM200 = snapdata["Mass_200crit"][indx]*snapdata["UnitInfo"]["Mass_unit_to_solarmass"]
 
 				#Check if the WhereWolf halo is within the viral radius of the halo
 				ratioradius = dist/hostR200
@@ -484,6 +485,7 @@ def ContinueTrack(opt,snap,TrackData,allpid,allpartpos,allpartvel,partOffsets,sn
 
 					#If it is within the viral radius check if it is gravitationally bound
 					v2=np.sum(meanvel**2)
+					G = 4.30211349e-9 #Mpc  Msun^-1 (km/s)^2
 					boundCal=0.5 * Mass_200crit * v2 - (G * hostM200 * Mass_200crit)/dist 
 					if((boundCal<0.0) & (Mass_200crit<hostM200)):
 						#If gravitationall bound then set is as the host and subtract the mass from it of the WW halo
